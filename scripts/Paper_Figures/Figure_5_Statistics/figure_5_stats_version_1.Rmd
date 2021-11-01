@@ -1,0 +1,67 @@
+---
+title: "Figure 5"
+author: "Dylan Hirsch"
+date: "5/2/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_knit$set(root.dir = normalizePath("../../../"))
+```
+
+```{r}
+library(ggplot2)
+library(Biobase)
+library(ggpubr)
+library(MetaIntegrator)
+library(limma)
+```
+
+Source utilities
+```{r}
+source('scripts/util/Enrichment/hyperGeo.R')
+```
+
+Load data
+```{r}
+# Baltimore Aging Study eset
+ESET.IN.PATH = snakemake@input[[1]] #'Reference/ferrucci/processed/aging_eset.RDS'
+# HI proteomic surrogate signature
+SIGNATURE.IN.PATH = snakemake@input[[2]] #'Classification/proteomic_surrogates/healthy.index.plasma.surrogate.somaId.RDS'
+# Baltimore Aging Study somamer associations from their paper
+TABLE.IN.PATH = snakemake@input[[3]] #'Reference/ferrucci/raw/acel12799-sup-0004-TableS3.txt'
+```
+
+## Wilcoxon test to see if proteins in the table that belong to our HI signature tend to have lower pvalues than those that do not
+
+Load data
+```{r}
+eset = readRDS(ESET.IN.PATH) ## The baltimore aging cohort eset
+feature.data = fData(eset) ## The baltimore aging cohort eset
+signature = readRDS(SIGNATURE.IN.PATH) ## The plasma somalogic surrogate signature for the HI
+table = read.table(TABLE.IN.PATH, header = TRUE, sep = '\t') ## The Ferrucci data significance table
+```
+
+See if proteins in the table that belong to our HI signature tend to have lower pvalues than those that do not
+```{r}
+signature = unname(unlist(signature)) ## Get the somalogic proteins used in the proteomic surrorgate signature of the HI
+signature = signature[signature %in% feature.data$SomaId] ## subset to only the proteins measured by Ferrucci
+pvals = table$p ## Get the p values from the Ferrucci data set
+names(pvals) = table$SomaId
+## Test whether the pvalues of proteins in the HI surrogate signature are more significant than those outside the
+## HI surrogate signature
+wilcox.test(pvals[names(pvals) %in% signature], pvals[! names(pvals) %in% signature], alternative = 'less')
+```
+
+## Fisher's exact test for the overlap of significant proteins from the original Baltimore Aging Cohort analysis and our HI signature
+
+See what the overlap in proteins is between the Ferrucci data (with cutoff) and ours
+```{r}
+pvals = pvals[p.adjust(pvals, 'fdr') < .05]
+```
+
+```{r}
+hyperGeoTest(names(pvals), feature.data$SomaId, signature)
+```
+

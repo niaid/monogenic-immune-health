@@ -1,0 +1,65 @@
+---
+title: "WGCNA Results"
+author: "Dylan Hirsch"
+date: "10/3/2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, root.dir = getwd(), echo = FALSE)
+```
+
+```{r}
+## Clear workspace
+rm(list = ls())
+
+## Load libraries
+suppressPackageStartupMessages({
+  require(Biobase)
+  require(WGCNA)
+  require(pheatmap)
+})
+
+## Source packages
+source('../../util/Plotting/feature_and_module_heatmaps.R')
+source('../../util/Plotting/colors.R')
+
+## Set globals
+ESET.PATH = '../../../Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds'
+SCORES.PATH = '../../../Data/Somalogic/analysis_output/wgcna_results/scores.rds'
+MODULES.PATH = '../../../Data/Somalogic/analysis_output/wgcna_results/modules.rds'
+WGCNA.RESULTS.PATH = '../../../Data/Somalogic/analysis_output/wgcna_results/wgcna_res.rdata'
+```
+
+```{r}
+## Load data
+somalogic = readRDS(file = ESET.PATH)
+scores = readRDS(file = SCORES.PATH)
+modules = readRDS(file = MODULES.PATH)
+palette = high_contrast_palette()
+```
+
+Plot feature correlation heatmap with module annotations
+```{r, fig.height=10, fig.width=10}
+plot_feature_correlations(somalogic, modules, method = 'pearson')
+```
+
+Plot feature correlation heatmap again, but for the spearman correlation
+```{r, fig.height=10, fig.width=10}
+plot_feature_correlations(somalogic, modules, method = 'spearman')
+```
+
+Plot gene and eigenvector correlation matrix
+```{r, fig.width = 10, fig.height = 20}
+plot_feature_value_and_module_score_correlations(somalogic, t(exprs(scores)))
+```
+
+Plot feature values among samples
+```{r, fig.width=10, fig.height=20}
+plot_sample_feature_values(somalogic, modules, palette = palette)
+```
+
+Plot module eigengene scores among patients
+```{r, fig.width = 10, fig.height = 20}
+plot_sample_module_scores(somalogic,t(exprs(scores)), palette = palette)
+```

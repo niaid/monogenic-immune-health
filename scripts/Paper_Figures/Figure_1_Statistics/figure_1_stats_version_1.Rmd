@@ -1,0 +1,259 @@
+---
+title: "Figure 1"
+author: "Dylan Hirsch"
+date: "3/29/2019"
+output: html_document
+---
+
+Set up
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_knit$set(root.dir = normalizePath("../../../"))
+```
+
+Load library
+```{r}
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(reshape2)
+library(Biobase)
+```
+
+Set input paths
+```{r}
+if(!exists("snakemake")){
+  setwd("../../..")
+  source("scripts/util/paper/parse_snakemake.R")
+  parse_snakemake(rule = "figure_1_statistics")
+}
+
+## Monogenic data base
+METADATA.IN.PATH = snakemake@input[[1]] ## "Metadata/monogenic.de-identified.metadata.RData"
+```
+
+## KS Statistic for difference in age distributions between cases and controls in the discovery cohort
+
+Load metadata
+```{r}
+load(METADATA.IN.PATH)
+```
+
+Get ages for patients in training set
+```{r}
+df = monogenic.all.assays %>%
+  select(visit_id, patient_id, patient_age_at_time_of_blood_draw, condition, analysis_group) %>%
+  mutate(patient_id = paste0('P', patient_id)) %>%
+  mutate(age = patient_age_at_time_of_blood_draw) %>%
+  mutate(group = ifelse(condition == "Healthy", "Control", "Case")) %>%
+  filter(analysis_group == 'Discovery') %>%
+  select(-patient_age_at_time_of_blood_draw, -analysis_group)
+```
+
+Average ages over various visits, first by averaging ages from samples within a visit (should all be almost exactly the same), and then averaging ages from samples across visits
+```{r}
+df = df %>%
+  group_by(visit_id) %>%
+  summarise(age = mean(age), patient_id = unique(patient_id), condition = unique(condition), group = unique(group)) %>%
+  ungroup() %>%
+  group_by(patient_id) %>%
+  summarise(age = mean(age), condition = unique(condition), group = unique(group)) %>%
+  ungroup()
+
+```
+
+Perform the KS test
+```{r}
+ks.test(df$age[df$group == 'Control'], df$age[df$group == 'Case'])
+```
+
+## Fisher's exact test for gender differences between cases and controls in the discovery cohort
+
+Load metadata
+```{r}
+#load(METADATA.IN.PATH)
+```
+
+Get metadata for patients in training set
+```{r}
+df = monogenic.all.assays %>%
+  select(patient_id, gender, condition, analysis_group) %>%
+  unique() %>%
+  mutate(patient_id = paste0('P', patient_id)) %>%
+  filter(analysis_group == 'Discovery') %>%
+  mutate(group = ifelse(condition == 'Healthy', 'Case', 'Control')) %>%
+  group_by(gender, group) %>%
+  summarise(total = length(patient_id)) %>%
+  ungroup()
+```
+
+Convert to matrix
+```{r}
+X = df %>%
+  dcast(gender ~ group, value.var = 'total') %>%
+  select(-gender) %>%
+  as.matrix()
+```
+
+Perform the fisher's test
+```{r}
+fisher.test(X)
+```
+
+```{r}
+
+#dat <- monogenic.all.assays %>%
+#        select(patient_id, visit_id, condition, analysis_group, assay_type) %>%
+#        filter(analysis_group == "Discovery") %>%
+#        filter(assay_type %in% c("Microarray", "Somalogic", ""))
+```
+
+
+#Number of repeat samples in each datatype
+
+```{r}
+TBNK.IN.PATH <- snakemake@input[["tbnk"]]
+SOMA.IN.PATH <- snakemake@input[["soma"]]
+ARRAY.IN.PATH <- snakemake@input[["array"]]
+TBNK.TEST.IN.PATH <- snakemake@input[["tbnk_test"]]
+SOMA.TEST.IN.PATH <- snakemake@input[["soma_test"]]
+ARRAY.TEST.IN.PATH <- snakemake@input[["array_test"]]
+
+tbnk <- readRDS(TBNK.IN.PATH)
+soma <- readRDS(SOMA.IN.PATH)
+array_ <- readRDS(ARRAY.IN.PATH)
+tbnk_test <- readRDS(TBNK.TEST.IN.PATH)
+soma_test <- readRDS(SOMA.TEST.IN.PATH)
+array_test <- readRDS(ARRAY.TEST.IN.PATH)
+
+
+data_list <- list(tbnk = tbnk, soma = soma, array_ = array_, tbnk_test = tbnk_test,
+                   soma_test = soma_test, array_test = array_test)
+```
+
+```{r}
+conditions = monogenic.all.assays[monogenic.all.assays$analysis_group %in% c('Discovery'), 'condition'] %>% unique
+
+## Remove any unknown samples from these conditions
+unknowns = c('Unknown', 'U_PI3K', 'U_Kastner', 'U_STAT1', 'U_CTLA4', 'U_Telomere')
+conditions = setdiff(conditions, unknowns)
+
+out_list <- list()
+for(nm in names(data_list)){
+  pdat <- pData(data_list[[nm]])
+  pdat <- pdat %>% filter(condition %in% conditions)
+
+  n_subjects <- length(unique(pdat$patient_id))
+  n_visits <- length(unique(pdat$visit_id))
+  n_repeats <- n_visits - n_subjects 
+
+  n_subj_w_repeats <- sum(table(pdat$patient_id) > 1)
+
+  out_list[[nm]] <- c(n_subjects = n_subjects, n_visits = n_visits, n_repeats = n_repeats, n_subj_w_repeats= n_subj_w_repeats)
+  #print(nm)
+  #print(vec)
+}
+mat <- do.call(rbind, out_list)
+print(mat)
+
+print("totals")
+print(colSums(mat))
+
+print("total number of unique disease patients")
+pat_list <- lapply(data_list, function(x){
+ pData(x) %>%
+         filter(condition %in% conditions) %>%
+         filter(condition != "Healthy") %>%
+         pull(patient_id)
+
+                   })
+length(unique(unlist(pat_list)))
+
+print("There were some additional patients with tbnk data, but no array/somalogic")
+pats_with_tbnk_but_no_array_soma <- setdiff(unique(unlist(pat_list[c(1, 4)])), unique(unlist(pat_list[c(2,3,5,6)])))
+pats_with_tbnk_but_no_array_soma
+
+pats_with_tbnk_but_no_array_soma <- setdiff(unique(unlist(pat_list[c(1)])), unique(unlist(pat_list[c(2,3,5,6)])))
+pats_with_tbnk_but_no_array_soma
+
+print("total number of unique healthy")
+healthy_list <- lapply(data_list, function(x){
+ pData(x) %>%
+         filter(condition == "Healthy") %>%
+         pull(patient_id)
+
+                   })
+length(unique(unlist(healthy_list)))
+setdiff(unique(unlist(healthy_list[c(1, 4)])), unique(unlist(healthy_list[c(2,3,5,6)])))
+
+print("total number of unique visits")
+visit_list <- lapply(data_list, function(x){
+ pData(x) %>%
+         filter(condition %in% conditions) %>%
+         pull(visit_id)
+
+                   })
+length(unique(unlist(visit_list)))
+
+
+#monogenic.all.assays %>% 
+#        mutate(pid = paste0("P", patient_id)) %>%
+#        filter( pid %in% pats_with_tbnk_but_no_array_soma) %>%
+#        select(patient_id, assay_type, visit_id)
+
+```
+
+```{r}
+#conditions = monogenic.all.assays[monogenic.all.assays$analysis_group %in% c('Discovery'), 'condition'] %>% unique
+#
+### Remove any unknown samples from these conditions
+#unknowns = c('Unknown', 'U_PI3K', 'U_Kastner', 'U_STAT1', 'U_CTLA4', 'U_Telomere')
+#conditions = setdiff(conditions, unknowns)
+#
+#counts_both_test_train = monogenic.all.assays %>%
+        #filter(assay_type %in% c("Microarray", "Somalogic")| patient_id %in% c(42, 59, 78 171)) %>%
+#  select(patient_id, visit_id, analysis_group, condition) %>%
+#  filter(!grepl("CTRL", condition, ignore.case = T)) %>%
+#  filter(!grepl("control", condition, ignore.case = T)) %>%
+#  filter(condition %in% c("Healthy", conditions)) %>%
+#  unique() %>% # Ensure there are no repeated visits
+#  group_by(analysis_group) %>%
+#  summarise(primary.samples = length(unique(patient_id)), # Count the number of primary samples for each condition
+#            all.samples = length(unique(visit_id))) %>% # Count the number of total samples for each condition
+#  mutate(repeat.samples = all.samples - primary.samples) %>% # Get the number of repeat samples for each condtion
+#  ungroup() 
+#
+#counts_both_test_train
+#
+#colSums(as.matrix(counts_both_test_train[, -1]))
+#```
+#
+#
+#```{r}
+#all_pats <- unique(c(tbnk$patient_id, array_$patient_id, soma$patient_id))
+#total_pats <- length(all_pats)
+#print("Total unique patients")
+#print(total_pats)
+```
+
+```{r}
+dat <- monogenic.all.assays %>%
+        filter(analysis_group == "Discovery") %>%
+        filter(assay_type %in% c("Microarray", "Somalogic"))
+
+tab <- table(monogenic.all.assays$patient_id, monogenic.all.assays$visit_id)
+dup_pats <- rownames(tab)[rowSums(tab > 0) > 1]
+
+ranges <- dat %>% 
+        filter(patient_id %in% dup_pats) %>%
+        group_by(patient_id) %>%
+        mutate(blood_draw_date = as.numeric(blood_draw_date)) %>%
+        summarise(min_date = min(blood_draw_date), max_date = max(blood_draw_date)) %>%
+        mutate(day_range = max_date - min_date) %>%
+        filter(day_range > 0)
+
+quantile(ranges$day_range)
+
+```
+
+

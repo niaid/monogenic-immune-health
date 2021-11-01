@@ -1,0 +1,45 @@
+---
+title: "Tissue Signatures"
+author: "Dylan Hirsch"
+date: "5/16/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+rm(list = ls())
+```
+
+```{r}
+library(Biobase)
+source('../../util/Enrichment/hyperGeo.R')
+source('../../util/Enrichment/proteinToGeneConversion.R')
+```
+
+```{r}
+ESET.IN.PATH = '../../../Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds'
+```
+
+
+```{r}
+eset = readRDS(ESET.IN.PATH)
+gene_sets = readRDS('../../../Gene_sets/processed/tissue_gene_sets.RDS')
+modules = readRDS('../../../Data/Somalogic/analysis_output/wgcna_results/modules.rds')
+```
+
+## Test 1: are tissue-specific markers enriched in the grey module compared to pan tissue signals?
+
+```{r}
+protein.to.gene.map = make_protein_to_gene_map(eset)
+modules = modules[names(modules) %in% names(protein.to.gene.map)]
+module = names(modules)[modules == 'grey']
+universe = get_cohorent_genes(protein.to.gene.map, module)
+hits = intersect(universe, protein.to.gene.map[module])
+tissue_genes = unique(unlist(gene_sets$general))
+hyperGeoTest(gene_set = tissue_genes, universe = universe, hits = hits)
+```

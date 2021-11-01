@@ -1,0 +1,47 @@
+---
+title: "Find Outliers to Remove From TBNKs"
+author: "Dylan Hirsch"
+date: "2/8/2018"
+output: github_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(Biobase)
+library(ggplot2)
+```
+
+Load training expression set
+```{r}
+eset = readRDS('../../../Data/TBNK/processed/tbnk_eset_training.rds')
+```
+
+We ensure the lymphocyte counts are equal to the counts of the subpopulations
+```{r}
+X = t(exprs(eset))
+subpopulations_sums = X[,'cd8_cd3_count'] + X[,'cd4_cd3_count'] + X[,'cd19_count'] + X[,'nk_cells_count']
+df = data.frame(lymphocytes = X[,'lymphocytes_abs'], sum_subpopulations = subpopulations_sums, visit_id = eset$visit_id)
+ggplot(df, aes(x = lymphocytes, y = sum_subpopulations, label = visit_id)) + geom_text(aes(label = visit_id))
+```
+
+```{r}
+counts = list(cd8_cd3 = X[,'cd8_cd3_count'], 
+              cd4_cd3 = X[,'cd4_cd3_count'], 
+              cd19 = X[,'cd19_count'], 
+              nk = X[,'nk_cells_count'])
+percents = list(cd8_cd3 = X[,'cd8_cd3'], 
+              cd4_cd3 = X[,'cd4_cd3'], 
+              cd19 = X[,'cd19'], 
+              nk = X[,'nk_cells'])
+
+ratios = lapply(counts, function(count) {count/X[,'lymphocytes_abs']})
+
+for(subpop in names(ratios)) {
+  df = data.frame(ratio = ratios[[subpop]], percents = percents[[subpop]], visit_id = eset$visit_id)
+  p = ggplot(df, aes(x = ratio, y = percents, label = visit_id)) + geom_text(aes(label = visit_id))
+  print(p)
+}
+```

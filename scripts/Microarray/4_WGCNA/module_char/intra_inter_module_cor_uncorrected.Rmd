@@ -1,0 +1,126 @@
+---
+title: "Cluster_quality"
+author: "Nicholas Rachmaninoff"
+date: "11/11/2018"
+output: 
+  github_document:
+    html_preview: false
+---
+```{r setup}
+.libPaths("../../../../R_3.4.3_packages")
+
+suppressPackageStartupMessages({
+  library(cluster)
+  library(Biobase)
+  library(BiocGenerics)
+  library(gplots)
+  library(WGCNA)
+  library(parallel)
+})
+
+knitr::opts_knit$set(root.dir = normalizePath("../../../.."))
+```
+
+```{r}
+getwd()
+```
+
+```{r}
+in.eset.fp <- "Data/Microarray/data_analysis_ready/eset_filtered.rds"
+wgcna.res.fp <- "Data/Microarray/analysis_output/WGCNA/uncorrected/modules.rds"
+
+eset <- readRDS(in.eset.fp)
+moduleColors <- readRDS(wgcna.res.fp)
+```
+
+```{r}
+datExpr <- t(exprs(eset))
+```
+
+
+##Module eigengenes explain a lot of the variation
+
+```{r}
+MEs <- moduleEigengenes(datExpr, moduleColors)
+var.exp <- t(MEs$varExplained)
+rownames(var.exp) <- colnames(MEs$eigengenes)
+var.exp
+#MEs.scaled <- moduleEigengenes(scale(datExpr), moduleColors) #it seems that WGCNA does scale prior to calculating the module eigengenes
+#t(MEs.scaled$varExplained)
+```
+
+
+
+```{r}
+corMat <- cor(datExpr)
+cor.upper.tri <- corMat[upper.tri(corMat)]
+hist(cor.upper.tri, xlim = c(-1,1))
+mean(cor.upper.tri)
+#IQR(cor.upper.tri)
+quantile(cor.upper.tri)
+```
+
+
+```{r}
+# tmp <- prcomp(scale(datExpr[, moduleColors == "pink"]))
+# #tmp$x
+# plot(MEs$eigengenes$MEpink, tmp$x[, 1])
+# cor(MEs$eigengenes$MEpink, tmp$x[, 1])
+```
+
+
+
+```{r}
+par(mfrow = c(3,3))
+mean.intramod.cor <- mclapply(unique(moduleColors), mc.cores = detectCores(), function(color){
+  select <- moduleColors == color
+  
+  cor.mat <- corMat[select, select]
+  cor.upper.tri <- cor.mat[upper.tri(cor.mat)]
+  hist(cor.upper.tri,
+       main = color,
+       xlab = (paste("pairwise cor for every module member,","mean = ", mean(cor.upper.tri))),
+       xlim = c(-1,1)
+  )
+})
+
+#get all of the intra-module correlations, get all of the between-module correlations
+
+```
+
+#Silhouette width
+
+```{r}
+emat <- t(scale(t(exprs(eset))))
+
+dist.mat <- dist(emat)
+anticor.mat <- (1 - cor(emat)) / 2 # makes anticorrelations 
+
+sil.dist <- silhouette(as.numeric(as.factor(moduleColors)), dist = dist.mat)
+#silhouette(as.numeric(as.factor(moduleColors)), dmatrix = anticor.mat)
+```
+
+```{r}
+hist(sil.dist[, 3])
+```
+
+The mean silhouette width calculated via euclidean distance is `r mean(sil.dist[, 3])`
+
+```{r}
+#heatmaps of correlations within modules
+
+# mean.intramod.cor <- mclapply(unique(moduleColors), mc.cores = detectCores(), function(color){
+#   select <- moduleColors == color
+#   
+#   cor.mat <- corMat[select, select]
+#   heatmap.2(cor.mat, 
+#             main = color, 
+#             col = bluered,
+#             labRow = "",
+#             labCol = "",
+#             trace = "none",
+#             scale = "none")
+# })
+```
+
+

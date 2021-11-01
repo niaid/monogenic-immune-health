@@ -1,0 +1,57 @@
+---
+title: "Microarray WGCNA modules"
+author: "Nicholas Rachmaninoff"
+date: "9/7/2018"
+output: 
+  github_document:
+    html_preview: false
+---
+
+```{r setup, include=FALSE}
+#.libPaths("../../../../R_3.4.3_packages")
+
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = normalizePath("../../../.."))
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(pheatmap)
+  library(BiocGenerics)
+  library(Biobase)
+  library(HTSanalyzeR)
+  library(knitr)
+})
+```
+
+```{r}
+source("scripts/util/Enrichment/hyperGeo.R")
+
+MODULES.PATH <- "Data/Microarray/analysis_output/WGCNA/batch/modules.rds"
+
+moduleColors <- readRDS(MODULES.PATH)
+```
+
+```{r}
+#load btms that have already been processed
+gene_set <- readRDS("Gene_sets/btm.rds")
+##remove gene sets without title because less interpretable
+gene_set <- gene_set[!grepl("TBA", names(gene_set))]
+```
+
+#Perform enrichment and assign results to dataframes
+
+```{r}
+matList <- moduleColors_hyper_geo(moduleColors, gene_set)
+```
+
+```{r}
+#print the results 
+print_topn_hyperGeo(matList, 20)
+```
+
+#plot enrichment results as heatmap
+
+```{r fig.height= 6, fig.width=6}
+heatmap_moduleHyperGeo(matList, cutoff = .001)
+```
+

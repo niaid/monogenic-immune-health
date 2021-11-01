@@ -1,0 +1,39 @@
+---
+title: "Enrichments"
+author: "Dylan Hirsch"
+date: "5/9/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(cowplot)
+library(ggpubr)
+```
+
+```{r}
+rm(list = ls())
+enrichments = readRDS('../../../Enrichments/transcriptional_surrogate_enrichments.RDS')
+source('../../util/Plotting/enrichments.R')
+```
+
+```{r}
+p = make_enrichment_bar_plot(enrichment = enrichments$tbnks.rdw$negative) +
+  ggtitle('RDW') +
+  theme(axis.title.x = element_text(size = 15),
+        axis.text.x = element_text(size = 15),
+        axis.title.y = element_text(size = 15),
+        axis.text.y = element_text(size = 10),
+        plot.title = element_text(size = 15))
+```
+
+```{r, fig.height=6, fig.width=12}
+print(p)
+```

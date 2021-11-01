@@ -1,0 +1,41 @@
+---
+title: "Somalogic Batch Analysis"
+author: "Dylan Hirsch"
+date: "3/30/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+eset = readRDS('../../Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds')
+library(ggplot2)
+```
+
+## XCGD
+
+```{r}
+features = c('Chitotriosidase.1', 'PARC', 'somal')
+for(feature in features) {
+  eset.healthy = eset[,eset$condition == 'Healthy']
+  X = t(exprs(eset.healthy))
+  df = data.frame(feature = X[, feature], batch = eset.healthy$assay_desc)
+  p = ggplot(df, aes(x = batch, y = feature)) + geom_boxplot() + geom_jitter() + ggtitle(feature)
+  print(p)
+}
+```
+
+```{r}
+condition = 'XCGD'
+eset.condition = eset[, eset$condition == condition]
+table(eset.condition$assay_desc)
+```
+

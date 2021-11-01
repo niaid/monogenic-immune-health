@@ -1,0 +1,74 @@
+---
+title: "Somalogic Batch Effect Test"
+author: "Dylan Hirsch"
+date: "4/1/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '/Volumes/SG_DATA/PROJECTS/Monogenic_Project/')
+```
+
+# Setup
+
+We load libraries
+```{r}
+library(dplyr)
+library(ggplot2)
+source('scripts/util/Processing/averageRepeatSamples.R')
+```
+
+
+We extract data from the larger plates
+```{r}
+eset = readRDS('Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds')
+plate.counts = table(eset$plate_id)
+plates = names(plate.counts)#[plate.counts > 20]
+#eset = eset[, eset$plate_id %in% plates]
+```
+
+We make sure there are no subjects with visits spread across plates
+```{r}
+df = data.frame(patient = eset$patient_id, plate = eset$plate_id)
+df = unique(df)
+patients.to.remove = df$patient[duplicated(df$patient)]
+eset = eset[, !eset$patient_id %in% patients.to.remove]
+```
+
+We average over the repeat samples
+```{r}
+eset = averageRepeatSamples(eset, meta.cols = c('condition','gender','plate_id'))
+```
+
+For each parameter we test for the potential effect of batch
+```{r}
+X = t(exprs(eset))
+df = data.frame(age = eset$Age, gender = as.numeric(factor(eset$gender)))
+conditions = setdiff(eset$condition, 'Healthy')
+
+for(condition in conditions) {
+  df[condition] = as.numeric(eset$condition == condition)
+}
+
+for(plate in plates) {
+  df[plate] = as.numeric(eset$plate_id == plate)
+}
+
+results = apply(X, 2, function(x) {
+  model = lm(x ~ ., df)
+  results = summary(model)
+  results = results$coefficients
+  return(results[, 4])
+})
+
+results = apply(results, 1, function(x) {
+  p.adjust(x, method = 'fdr')
+})
+```
+
+```{r}
+results.2 = results[,25:31]
+View(results.2[apply(results.2, 1, min) < .05,])
+```
+

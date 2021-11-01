@@ -1,0 +1,31 @@
+---
+title: "Figure 4 statistics - n features classifier"
+output: html_document
+---
+
+Set up
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_knit$set(root.dir = normalizePath("../../.."))
+```
+
+
+Corresponds to figure 4A schematic
+
+### Number of features in each data type in classifier
+
+```{r}
+#if(!exists("snakemake")){
+#  setwd("../../..")
+#}
+
+IN.PATH <- snakemake@input[[1]]
+
+design_mats <- readRDS(IN.PATH)
+
+n_feat <- sapply(design_mats, ncol)
+
+keep_cats <- c("somalogic.modules", "microarray.modules", "tbnk", "all.modules")
+
+n_feat[setdiff(names(n_feat), c("somalogic.features", "microarray.features"))]
+```

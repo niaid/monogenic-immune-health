@@ -1,0 +1,52 @@
+---
+title: "Somalogic_outlier_analysis"
+author: "Dylan Hirsch"
+date: "2/13/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+rm(list = ls())
+library(Biobase)
+library(ggplot2)
+load('../../../Metadata/monogenic.de-identified.metadata.RData')
+eset.train = readRDS('../../../Data/Somalogic/processed/v1/training_somalogic.rds')
+eset.test = readRDS('../../../Data/Somalogic/processed/v1/testing_somalogic.rds')
+```
+
+```{r}
+eset = combine(eset.test, eset.train)
+X = t(exprs(eset))
+pca = prcomp(X)
+x = pca$x
+df = data.frame(PC1 = x[,1], PC2 = x[,2], visit_ids = eset$patient_id)
+```
+
+```{r}
+meta = monogenic.somalogic
+meta = meta[colnames(eset), ]
+notes = meta$sample_notes
+notes[is.na(notes)] = 'NA'
+notes = tolower(notes)
+notes = factor(notes)
+```
+
+
+```{r}
+p = ggplot(df, aes(x = PC1, y = PC2, label = visit_ids, color = notes)) + geom_point() + geom_text(aes(label = visit_ids))
+print(p)
+```
+
+```{r}
+df.subset = df[notes != 'na', ]
+notes.subset = notes[notes != 'na']
+p = ggplot(df.subset, aes(x = PC1, y = PC2, label = visit_ids, color = notes.subset)) + geom_point() + geom_text(aes(label = visit_ids))
+print(p)
+```
+

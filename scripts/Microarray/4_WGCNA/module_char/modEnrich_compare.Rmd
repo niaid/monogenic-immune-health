@@ -1,0 +1,85 @@
+---
+title: "Untitled"
+output: github_document
+---
+```{r}
+library(WGCNA)
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+base.dir <- "/Volumes/SG_DATA"
+monogenic.project.dir <- file.path(base.dir, "PROJECTS/Monogenic_Project")
+analysis.dir <- file.path(monogenic.project.dir, "Data/Microarray/analysis_output")
+
+
+wgcna.dir <- file.path(analysis.dir, "WGCNA")
+
+
+in.eset.dir <- file.path(monogenic.project.dir, "Data/Microarray/data_analysis_ready")
+```
+
+```{r}
+#load expressionsets
+load(file.path(in.eset.dir, "eset_filtered.rdata"))
+eset.all <- eset
+
+load(file.path(in.eset.dir, "eset_filtered_topVar.rdata"))
+eset.topVar <- eset
+
+rm(eset)
+
+#source all of the WGCNA results
+for (directory in list.files(wgcna.dir)){
+  load(file.path( file.path(wgcna.dir, directory), "wgcna_res.rdata" ))
+  assign(paste0("colors.", directory), moduleColors)
+  assign(paste0("geneTree.", directory), geneTree)
+  rm(moduleColors)
+  rm(geneTree)
+}
+print("the wgcna directories are:")
+print(list.files(wgcna.dir))
+```
+
+
+```{r}
+#gene set db downloaded from here https://github.com/RGLab/ImmuneSignatures/blob/master/data/geneSetDB.rda
+load("/Volumes/SG_DATA/users/rachmaninoffn2/maternal_infant/geneSets/geneSetDB.rda")
+
+###This was borrowed from here https://raw.githubusercontent.com/RGLab/LabKeyModules/master/ImmuneSignatures/reports/schemas/ImmuneSignatures.Rmd
+
+# Prep GeneSetDB per original code.  Can also use GSEAbase package.
+gene_set <- strsplit(geneSetDB, "\t")       ## convert from vector of strings to a list
+names(gene_set) <- sapply(gene_set,"[", 1)  ## move the names column as the names of the list
+links <- sapply(gene_set,"[", 2)
+gene_set <- lapply(gene_set, "[",-1:-2)     ## remove name and description columns
+gene_set <- lapply(gene_set, function(x){ x[ which( x != "") ] })      ## remove empty strings
+
+##Added by me
+gene_set <- gene_set[!grepl("TBA", names(gene_set))]
+
+#gscollection <- GeneSetCollection(gene_set, idType = "missing", setType = "missing")
+```
+
+```{r}
+source(file.path(monogenic.project.dir, "Src/Enrichment/moduleFisher.R"))
+
+getP.adj <- function(moduleColors, eset){
+  datList <- lapply(unique(moduleColors), function(module){
+     dat <- moduleFisher(module, moduleColors, gene_set, featureNames(eset))
+     #dat$module <- module
+     return(dat)
+  })
+  names(datList) <- unique(moduleColors)
+  p.adj.list <- sapply(datList, "[", "p.adj")
+  p.adj.mat <- do.call(cbind, p.adj.list)
+  return(p.adj.mat)
+}
+
+x<- getP.adj(colors.all_genes_1st_sample, eset.all)
+#getDatList(colors.all_genes_1st_sample, eset.all)
+```

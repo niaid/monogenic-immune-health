@@ -1,0 +1,169 @@
+---
+title: "Figure 4 statistics"
+author: "Dylan Hirsch"
+date: "8/9/2019"
+output: html_document
+---
+
+Set up
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_knit$set(root.dir = normalizePath("../../.."))
+```
+
+Load libraries
+```{r}
+library(Biobase)
+library(dplyr)
+```
+
+Source utilites
+```{r}
+source('scripts/util/Groups/groups.R')
+```
+
+Set paths
+```{r}
+# Sample meta data for samples run in the random forest
+META.IN.PATH = snakemake@input[[1]] #"Classification/healthy_random_forest_sample_meta_data_all.RDS"
+# The healthy index from the healthy random forest
+INDEX.IN.PATH = snakemake@input[[2]] #"Classification/results/healthy_rf_results_all.RDS"
+```
+
+# Tests for differences of HI among groups
+
+Load data
+```{r}
+meta = readRDS(META.IN.PATH)
+healthy.index = readRDS(INDEX.IN.PATH)
+```
+
+Load groups
+```{r}
+AI = util.get_ai()
+PID = util.get_pid()
+Telo = util.get_tert_terc()
+```
+
+Initialize data frame with only patients' healthy indexes
+```{r}
+df = data.frame(healthy.index = healthy.index$all.modules.plus.grey.with.tbnks, condition = meta$condition, 
+                stringsAsFactors = FALSE)
+df = df %>%
+  filter(condition %in% c(AI, PID, Telo)) %>%
+  mutate(group = condition %>%
+           replace(.,. %in% AI, 'AI') %>%
+           replace(.,. %in% PID, 'PID') %>%
+           replace(.,. %in% Telo, 'Telo')) %>%
+  mutate(condition = factor(condition, unique(condition))) %>%
+  mutate(group = factor(group, c('AI','PID','Telo')))
+```
+
+## See if HI is different across conditions (not including Healthy)
+```{r}
+kruskal.test(df$healthy.index, df$condition)
+```
+
+## See if HI is different across groups (AI, PID, Telo)
+```{r}
+kruskal.test(df$healthy.index, df$group)
+```
+
+## See if HI is different across PID conditions
+```{r}
+df.subset = df %>% filter(group == 'PID')
+kruskal.test(df.subset$healthy.index, df.subset$condition)
+```
+
+## See if HI is different across AI conditions
+```{r}
+df.subset = df %>% filter(group == 'AI')
+kruskal.test(df.subset$healthy.index, df.subset$condition)
+```
+
+## See if HI is different across Telo conditions
+```{r}
+df.subset = df %>% filter(group == 'Telo')
+kruskal.test(df.subset$healthy.index, df.subset$condition)
+```
+
+# Test if age distributions are similar among health and disease subjects tested
+
+Load data
+```{r}
+meta = readRDS(META.IN.PATH)
+healthy.index = readRDS(INDEX.IN.PATH)
+```
+
+Test for differences between healthy controls and patient distributions using a KS test
+```{r}
+healthy.ages = meta$Age[meta$condition == "Healthy"]
+case.ages = meta$Age[meta$condition != "Healthy"]
+ks.test(healthy.ages, case.ages)
+```
+
+Also do a Kruskall Wallace test for differences in ages among groups
+```{r}
+ages = c(healthy.ages, case.ages)
+groups = factor(c(rep('healthy', length(healthy.ages)), rep('case', length(case.ages))), c('healthy','case'))
+kruskal.test(c(healthy.ages, case.ages), groups)
+```
+
+# Get Variances of the healthy index for each group
+
+Load data
+```{r}
+index = readRDS(INDEX.IN.PATH)
+meta = readRDS(META.IN.PATH)
+```
+
+```{r}
+index = index$all.modules.plus.grey.with.tbnks
+sapply(unique(meta$condition), function(condition) {
+  var(index[meta$condition == condition])
+})
+```
+
+# Test if there is a difference in the Healthy Index of older versus younger subjects among healthy controls
+
+Load data
+```{r}
+index = readRDS(INDEX.IN.PATH)
+meta = readRDS(META.IN.PATH)
+```
+
+Get healthy indexes for the younger and older halves of patients
+```{r}
+index = index$all.modules.plus.grey.with.tbnks
+
+median.age = median(meta$Age[meta$condition == 'Healthy'])
+younger.indexes = index[meta$Age <= median.age & meta$condition == 'Healthy']
+older.indexes = index[meta$Age > median.age & meta$condition == 'Healthy']
+wilcox.test(younger.indexes, older.indexes)
+```
+
+# Do Wilcoxon tests of the healthy index for each group versus healthy
+
+Load data
+```{r}
+index = readRDS(INDEX.IN.PATH)
+meta = readRDS(META.IN.PATH)
+```
+
+```{r}
+index = healthy.index$all.modules.plus.grey.with.tbnks
+```
+
+Do the wilcoxon for each condition versus healthy and display results
+```{r}
+conditions = setdiff(unique(meta$condition), 'Healthy')
+for(condition in conditions) {
+  print(condition)
+  print(paste0('n = ',sum(meta$condition == condition)))
+  res = wilcox.test(index[meta$condition == 'Healthy'], 
+              index[meta$condition == condition], 
+              alternative = 'greater')
+  print(res)
+}
+```
+
