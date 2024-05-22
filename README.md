@@ -8,7 +8,7 @@ Rachel Sparks, Nicholas Rachmaninoff, William W. Lau, Dylan C. Hirsch, Neha Bans
 
 ### Input Data
 
-As the diseases in the study are extremely, data are being deposited in DBGAP to protect patient confidentiality. The DBGAP accession number will be provided once assigned.
+As the diseases in the study are extremely, data are deposited in dbGAP to protect patient confidentiality. Subject-level data, including microarray gene expressions, Somalogic-based serum protein measurements, clinical information, and demographics, are made available through dbGAP request under accession number phs002732.v1.p1 (https://www.ncbi.nlm.nih.gov/projects/gap/cgi-bin/study.cgi?study_id=phs002732.v1.p1). Aggregated mean gene count matrices, protein concentrations, and circulating cell frequencies by condition, as well as disease signatures and module membership are available publicly on https://panmonogenic.yale.edu/. Users can submit their own proteomic and/or transcriptional data for calculation of the IHM surrogate scores via this webtool.
 
 ### Instructions
 The workflow to create all figures can be run with Snakemake and Singularity for increased reproducibility. 
