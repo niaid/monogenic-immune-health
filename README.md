@@ -39,7 +39,7 @@ Primary author(s): Rachel Sparks, Nicholas Rachmaninoff, William W. Lau, Dylan C
 
 Organizational contact information: John Tsang (john.tsang AT nih.gov)
 
-Date of release: November 3, 2021
+Date of release: May 21, 2024
 
 Version: 1.0
 
