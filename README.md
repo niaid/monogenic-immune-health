@@ -1,5 +1,3 @@
-# monogenic-immune-health
-
 # A Unified Metric of Human Immune Health
 
 This repository contains the code accompanying the article:
