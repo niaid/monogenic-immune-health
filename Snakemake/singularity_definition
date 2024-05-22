@@ -1,0 +1,99 @@
+Bootstrap: docker
+FROM: bioconductor/release_core2:R3.5.1_Bioc3.8
+
+#This was essentially taken from singularity-hub.org/ii-bioinfo/R3.5.1_Bioc3.8_rstudio1.1.463:latest
+
+%help
+  RStudio Desktop version 1.1.463
+  R version 3.5.1
+
+%setup
+
+%files
+
+%labels
+  RStudio_Version 1.1.463
+  R_Version 3.5.1
+  based on &quot;https://github.com/mjstealey/rstudio&quot;
+
+%environment
+  RSTUDIO_VERSION=1.1.463
+  R_BASE_VERSION=3.5.1
+  LC_ALL=en_US.UTF-8
+  LANG=en_US.UTF-8
+
+%post
+  export RSTUDIO_VERSION=1.1.463
+
+  apt-get install -y libudunits2-dev
+  
+
+  R -e "BiocManager::install('limma')"
+  R -e "BiocManager::install('variancePartition')"
+  R -e "BiocManager::install('oligo')"
+  R -e "BiocManager::install('pd.hugene.1.0.st.v1')"
+  R -e "BiocManager::install('preprocessCore')" #needed for metaintegrator
+  R -e "BiocManager::install('GEOquery')"
+  R -e "BiocManager::install('sva')"
+  R -e "BiocManager::install('impute')"
+  R -e "BiocManager::install('GO.db')" #needed for WGCNA
+  R -e "BiocManager::install('multtest')" #needed for metaintegrator
+  R -e "BiocManager::install('GEOmetadb')"  #needed for metaintegrator
+  R -e "BiocManager::install('SummarizedExperiment')" #needed for nugen
+  
+  R -e "install.packages('devtools')"
+  R -e "devtools::install_github('jokergoo/ComplexHeatmap')"
+  R -e "install.packages('reshape')"
+  R -e "install.packages('reshape2')"
+  R -e "install.packages('doMC')"
+  R -e "install.packages('dendextend')"
+  R -e "install.packages('foreach')"
+  R -e "install.packages('ggrepel')"
+
+  R -e "install.packages('knitr')"
+  R -e "install.packages('tidyverse')"
+  R -e "install.packages('plyr')" #used in pick probeset code
+  R -e "install.packages('r.jive')"
+  R -e "install.packages('ComplexHeatmap')"
+  R -e "install.packages('pheatmap')"
+  R -e "install.packages('tidygraph')"
+  R -e "install.packages('units')"
+  R -e "install.packages('ggraph')"
+  R -e "install.packages('igraph')"
+  R -e "install.packages('randomForest')"
+  R -e "install.packages('reshape2')"
+  R -e "install.packages('fpc')"
+  R -e "install.packages('glmnet')"
+  R -e "install.packages('WGCNA')"
+  R -e "install.packages('statmod')"
+ 
+  R -e "install.packages('ggpubr')"
+  R -e "install.packages('ggbeeswarm')"
+  R -e "install.packages('ggfortify')"
+  R -e "install.packages('ggrepel')"
+  R -e "install.packages('cowplot')"
+  R -e "install.packages('gridExtra')"
+  R -e "install.packages('MetaIntegrator')"
+  R -e "install.packages('ROCR')"
+  R -e "install.packages('pROC')"
+
+  R -e "install.packages('openxlsx')"
+  R -e "install.packages('readxl')"
+  R -e "install.packages('zip')"
+  R -e "install.packages('data.table')"
+  R -e "install.packages('RColorBrewer')"
+
+%apprun R
+  exec R &quot;${@}&quot;
+
+%apprun Rscript
+  exec Rscript &quot;${@}&quot;
+
+%apprun rstudio
+  exec rstudio &quot;${@}&quot;
+
+%runscript
+  exec &quot;${@}&quot;
+
+%test
+  exec R --version

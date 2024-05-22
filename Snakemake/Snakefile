@@ -1,0 +1,1670 @@
+singularity: "file:///path_to_the_singularity_container/monogenic_0.4.sif" 
+# run the following and save the container on your machine. Update the path above to the location where you have saved the container
+# singularity pull library://nrachman/default/monogenic:0.4
+
+import os
+
+jive_CATEGORIES = ["subject", "subject_onlyHealthy", "subject_noHealthy"]
+rule all:
+    input:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/condition_counts.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/1d_proteomic_module_heatmap.png",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/1d_transcriptomic_module_heatmap.png",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1e_stable_feature_simulated_example.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/1f_feature_varpart.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/1g_tbnk_module_varpart.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_3/Supp_3c_purple_pm2_heatmap.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_3/Supp_3f_red_tm1_heatmap.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_3/Supp_3a_4a_tbnk_module_condition_bubble_plot.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_2/Supp_2a_n_subjects.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_3/Supp_3b_boxplots_of_select_features_v2.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_2/Supp_3d_IL23.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_3/Supp_3e_IL23_tbnk_cor_select_features.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2d_jive_scatter_plus_boxplots.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3f_mad_plot.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2e_jpc1_hc_vs_all.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2f_jive_pc_comparison.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2c_jive_pc_cor.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2b_jive_var_exp.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3b_IHM_ROC_LOO.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3def_IHM_age_cor_IHM_densityandboxplots.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3g_IHM_age_correlation.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3c_IHM_significant_features_permutation_test.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_4/ED_4d_geneset_enrichment_of_proteomic_feature_transcriptional_correlates.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_4/4d_IHM_jPC1_transcriptomic_surrogate_meta_effects.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_5/ED_5d_il6_cor_ihm_monogenic_healthy_and_disease.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_5/ED_5f_cxcl9_cor_ihm_monogenic_healthy_and_disease.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1a_age_distributions.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1b_condition_age_distributions.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1c_gender_split_by_condition.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1h_feature_varpart_include_medication.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1f_module_varpart.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1g_feature_varpart_distribution.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1d_cbctbnk_cor_modules.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_2/ED_2a_tbnk_heatmap.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_2/ED_2b_tbnk_pca.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_4/Supp_4b_condition_specific_classifier_aucs.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_4/Supp_4c_condition_specific_classifier_pvals.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3a_jive_array_indiv_boxplots.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3a_jive_array_indiv_scatter_w_centroids.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3b_jive_soma_indiv_boxplots.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3b_jive_soma_indiv_scatter_w_centroids.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3e_leuko_composite_pc2_cor.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3f_leuko_composite_separate_pc2_cor.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3cd_jive_pc_enrichments_joint_down_pc1.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_4/ED_4a_all_IHM_feature_combos_ROC.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_4/ED_4e_jive_pc_correlation_w_IHM.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_4/ED_4c_all_IHM_feature_combos_feature_pvals_permutation.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_5/ED_5a_jpc1_cor_age.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_7/ED_7a_IHM_transcriptomic_surrogate_autoimmune_meta_analysis.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_7/ED_7b_gene_level_autoimmune_meta_analysis_geneset_enrichment.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_5/ED_5g_ihm_age_cor_no_pm2.pdf",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_gene_set_enrichments_table.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_tissues_set_enrichments_table.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/microarray_module_gene_set_enrichments_table.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_members.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/microarray_module_members.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/demographics_table.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/protein_features_DE_results.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/protein_modules_DE_results.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/gene_features_DE_results.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/gene_modules_DE_results.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/cbc_and_tbnks_DE_results.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pc_enrichment.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pcs.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pc_cor.csv",
+        'Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/healthy_feature_gvi_table.txt',
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/hi_results_full_mod.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/surrogate_sig_genes.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/meta_analysis_n_subjects_per_study.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5_Tables/proteomic_surrogate_ihm.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5_Tables/figure_5_meta_analysis_table.txt",
+        "Pipeline_out/Classification/predictions/healthy_rf_testing_predictions_all.RDS",
+        "Pipeline_out/Paper_1_Figures_20210929/supp_tables.xlsx",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Statistics/figure_1_stats_version_1.html",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Statistics/supplemental_figure_2_other_classifiers_table.html",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Statistics/cgd_stat1_ifn_tm1.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Statistics/cgd_stat1_ifn_prots.csv",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Statistics/figure_4_stats_version_1.html",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Statistics/figure_4_stats_n_features_in_classifier.html",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5_Statistics/figure_5_stats_version_1.html",
+
+rule rma:
+    input:
+        cel_dir="Inputs/Data/Microarray/Monogenic_Microarray_CEL_File"
+    output:
+        raw="Pipeline_out/Data/Microarray/raw/raw_featureset.rds",
+        eset="Pipeline_out/Data/Microarray/raw/eset_rma_out.rds"
+    script:
+        "scripts/Microarray/0_rma/rma.R"
+
+rule add_pdata:
+    input:
+        eset="Pipeline_out/Data/Microarray/raw/eset_rma_out.rds",
+        meta="Inputs/Metadata/monogenic.de-identified.metadata.RData"
+    output:
+        "Pipeline_out/Data/Microarray/raw/eset_rma_with_pData.rds"
+    script: 
+        "scripts/Microarray/0_rma/add_pdata.R"
+       
+rule pick_probeset:
+    input:
+        eset="Pipeline_out/Data/Microarray/raw/eset_rma_with_pData.rds",
+        probe_anno="Inputs/Data/Microarray/probeset/pre_downloaded_ann/probe_annotations_full.csv"
+    output:
+        probemap="Pipeline_out/Data/Microarray/probeset/output/probe_annotations.txt",
+        picked_probes="Pipeline_out/Data/Microarray/probeset/output/picked_probes.txt"
+    script:
+        "scripts/Microarray/2_probeset/get_anno_pick_probes.R" 
+
+#https://stackoverflow.com/questions/47409051/how-to-pass-an-optparse-argument-to-a-r-markdown-file-while-rendering
+#snakemake r markdown can only have one output
+rule pre_filtering:
+    input: 
+        eset="Pipeline_out/Data/Microarray/raw/eset_rma_with_pData.rds",
+        picked_probes="Pipeline_out/Data/Microarray/probeset/output/picked_probes.txt",
+        probe_anno="Inputs/Data/Microarray/probeset/pre_downloaded_ann/probe_annotations_full.csv"
+    output:
+        "scripts/Microarray/3_filtering/pre_filtering.html",
+        training_sample="Pipeline_out/Data/Microarray/data_analysis_ready/eset_training_sample.rds",
+        training_subject="Pipeline_out/Data/Microarray/data_analysis_ready/eset_training_subject.rds",
+        qc="Pipeline_out/Data/Microarray/data_analysis_ready/eset_qc.rds",
+        val_sample="Pipeline_out/Data/Microarray/data_analysis_ready/eset_validation_sample.rds",
+        val_subject="Pipeline_out/Data/Microarray/data_analysis_ready/eset_validation_subject.rds",
+        batch_training_sample="Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_sample.rds",
+        batch_training_subject="Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_subject.rds",
+        batch_qc="Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_qc.rds",
+        batch_val_sample="Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_validation_sample.rds",
+        batch_val_subject="Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_validation_subject.rds"  
+    shell:
+        "Rscript -e \"rmarkdown::render(\'scripts/Microarray/3_filtering/pre_filtering.Rmd\', "
+        "params = list(eset=\'{input.eset}\', picked_probes=\'{input.picked_probes}\', probe_anno=\'{input.probe_anno}\',"
+        "training_sample=\'{output.training_sample}\', training_subject=\'{output.training_subject}\',"
+        "qc=\'{output.qc}\', val_sample=\'{output.val_sample}\', val_subject=\'{output.val_subject}\',"
+        "batch_training_sample=\'{output.batch_training_sample}\', batch_training_subject=\'{output.batch_training_subject}\',"
+        "batch_qc=\'{output.batch_qc}\', batch_val_sample=\'{output.batch_val_sample}\', batch_val_subject=\'{output.batch_val_subject}\'"
+        "))\""
+        #"Rscript -e \"rmarkdown::render('scripts/Microarray/3_filtering/pre_filtering.Rmd')\""
+    #script:
+    #    "scripts/Microarray/3_filtering/pre_filtering.Rmd"
+
+rule WGCNA_array:
+    input:
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_sample.rds",
+    output:
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_subject_scores.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_subject_varexp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/WGCNA_microarray_intermediates.rds",
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_1/microarray_outlier_removal_for_wgcna.pdf",
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_1/microarray_wgcna_module_creation.pdf"
+    script:
+        "scripts/Microarray/4_WGCNA/wgcna.R" #This requires a good bit of memory, so if you run into problems try upping the memory in the cluster_config
+        
+#jive
+rule jive_subject_all:
+    input:
+        array_in = "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_features.rds",
+        soma_in = "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_features.rds"
+    output: 
+        "Pipeline_out/Integration_output/jive/subject/jive.rds"
+    script:
+        "scripts/jive/jive_run/jive_subject_level_run.R"
+
+rule jive_subject_healthy_only:
+    input:
+        array_in = "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_features.rds",
+        soma_in = "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_features.rds"
+    output:
+        "Pipeline_out/Integration_output/jive/subject_onlyHealthy/jive.rds"
+    script:
+        "scripts/jive/jive_run/jive_subject_level_run_onlyHealthy.R"
+
+rule jive_subject_no_healthy:
+    input:
+        array_in = "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_features.rds",
+        soma_in = "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_features.rds"
+    output:
+        "Pipeline_out/Integration_output/jive/subject_noHealthy/jive.rds"
+    script:
+        "scripts/jive/jive_run/jive_subject_level_run_noHealthy.R"
+
+rule jive_pca:
+    input:
+        jive_obj = "Pipeline_out/Integration_output/jive/{jive_category}/jive.rds"
+    output:
+        "Pipeline_out/Integration_output/jive/{jive_category}/prcomp_list.rds"
+    script:
+        "scripts/jive/pca_run/jive_pca_run.R"
+
+rule jive_enrich_run:
+    input:
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds",
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        array_eset="Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_subject.rds",
+        soma_eset="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        tissue_genesets="Inputs/Gene_sets/processed/tissue_gene_sets.RDS",
+        genesets="Inputs/Gene_sets/processed/combined_gene_sets.RDS",
+    output:
+        "Pipeline_out/Integration_output/jive/subject/pc_enrich_dat_camera.rds"
+    script:
+        "scripts/jive/enrich/jive_pca_enrich_wdirection.R"
+
+N_PERM_ITER = 100
+SERIES_DIR = 'Inputs/Reference/jamboree/raw/series_matrices'
+SERIES_NAMES = os.listdir(SERIES_DIR)
+
+iteration_numbers = [x + 1 for x in range(N_PERM_ITER)]
+
+
+rule create_classifier_groups:
+    output:
+        "Pipeline_out/Classification/condition_groups.RDS",
+        "Pipeline_out/Classification/background_groups.RDS"
+    script:
+        "scripts/Classification/preprocessing/create_classifier_groups.R"
+
+
+rule create_design_matrices:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_sample_level_features.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_sample_level_modules.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_sample_level_features.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_sample_level_modules.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/stable_tbnk_sample_level_features.rds",
+        "Pipeline_out/Classification/condition_groups.RDS",
+        "Pipeline_out/Classification/background_groups.RDS",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds"
+    output:
+        "Pipeline_out/Classification/design_matrices/{condition}_all_design_matrices_{background}.RDS",
+        "Pipeline_out/Classification/meta_data/{condition}_random_forest_sample_meta_data_{background}.RDS"
+    script:
+        "scripts/Classification/preprocessing/create_design_matrices.R"
+
+rule subset_design_matrices:
+    input:
+        "Pipeline_out/Classification/design_matrices/{condition}_all_design_matrices_{background}.RDS",
+        "Pipeline_out/Classification/meta_data/{condition}_random_forest_sample_meta_data_{background}.RDS"
+    output:
+        "Pipeline_out/Classification/design_matrices/{condition}_random_forest_design_matrices_{background}.RDS"
+    script:
+        "scripts/Classification/preprocessing/subset_design_matrices.R"
+
+rule design_mat_no_pm2:
+    input:
+        "Pipeline_out/Classification/design_matrices/healthy_random_forest_design_matrices_all.RDS",
+    output:
+        "Pipeline_out/Classification/design_matrices_no_pm2/healthy_random_forest_design_matrices_all.RDS",
+    script:
+         "scripts/Classification/preprocessing/design_mat_no_pm2.R"
+
+rule run_random_forests:
+    input:
+        "Pipeline_out/Classification/design_matrices/{condition}_random_forest_design_matrices_{background}.RDS",
+        "Pipeline_out/Classification/meta_data/{condition}_random_forest_sample_meta_data_{background}.RDS",
+        "Pipeline_out/Classification/condition_groups.RDS",
+        "Pipeline_out/Classification/background_groups.RDS"
+    output:
+        "Pipeline_out/Classification/results/{condition}_rf_results_{background}.RDS",
+        "Pipeline_out/Classification/results/{condition}_rf_gvis_{background}.RDS",
+        "Pipeline_out/Classification/results/{condition}_rf_models_{background}.RDS"
+    script:
+        "scripts/Classification/analysis/run_random_forests.R"
+
+rule run_rf_no_pm2:
+    input:
+        "Pipeline_out/Classification/design_matrices_no_pm2/healthy_random_forest_design_matrices_all.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/condition_groups.RDS",
+        "Pipeline_out/Classification/background_groups.RDS"
+    output:
+        "Pipeline_out/Classification/results_no_pm2/healthy_rf_results_all.RDS",
+        "Pipeline_out/Classification/results_no_pm2/healthy_rf_gvis_all.RDS",
+        "Pipeline_out/Classification/results_no_pm2/healthy_rf_models_all.RDS"
+    script:
+        "scripts/Classification/analysis/run_random_forests.R"
+
+
+rule run_gvi_permutations:
+    input:
+        "Pipeline_out/Classification/design_matrices/{condition}_random_forest_design_matrices_{background}.RDS",
+        "Pipeline_out/Classification/meta_data/{condition}_random_forest_sample_meta_data_{background}.RDS",
+        "Pipeline_out/Classification/results/{condition}_rf_gvis_{background}.RDS",
+        "Pipeline_out/Classification/condition_groups.RDS",
+        "Pipeline_out/Classification/background_groups.RDS"
+    output:
+        "Pipeline_out/Classification/results/permutations/{condition}_permutation_{number}_pvals_{background}.RDS"
+    script:
+        "scripts/Classification/analysis/run_gvi_permutations.R"
+
+
+rule get_feature_pvalues:
+    input:
+        expand("Pipeline_out/Classification/results/permutations/{{condition}}_permutation_{number}_pvals_{{background}}.RDS", number = iteration_numbers)
+    output:
+        "Pipeline_out/Classification/results/{condition}_rf_pvals_{background}.RDS"
+    script:
+        "scripts/Classification/analysis/get_feature_pvalues.R"
+
+
+rule select_stable_features_testing:
+    input:
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_testing_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level_testing.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_validation_sample.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/scores_sample_level_testing.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_testing_sample_level_eset.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_testing_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_subject_level_testing.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_validation_subject.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/scores_subject_level_testing.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_testing_subject_level_eset.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_features_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_modules_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_features_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_modules_standard_vp.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/tbnks_features_standard_vp.rds",
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_sample_level_features_testing.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_sample_level_modules_testing.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_sample_level_features_testing.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_sample_level_modules_testing.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/stable_tbnk_sample_level_features_testing.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_features_testing.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_modules_testing.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_features_testing.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_modules_testing.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/stable_tbnk_subject_level_features_testing.rds"
+    script:
+        "scripts/Stability/analysis/select_stable_features.R"
+
+rule create_design_matrices_testing:
+    #This is where the unknown subjects get excluded. It might be cleaner to have them excluded elsewhere. They are only in the testing set
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_sample_level_features_testing.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_sample_level_modules_testing.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_sample_level_features_testing.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_sample_level_modules_testing.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/stable_tbnk_sample_level_features_testing.rds",
+        "Pipeline_out/Classification/condition_groups.RDS",
+        "Pipeline_out/Classification/background_groups.RDS",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds"
+    output:
+        "Pipeline_out/Classification/design_matrices/{condition}_all_testing_design_matrices_{background}.RDS",
+        "Pipeline_out/Classification/meta_data/{condition}_random_forest_testing_sample_meta_data_{background}.RDS"
+    script:
+        "scripts/Classification/preprocessing/create_design_matrices.R"
+
+rule subset_design_matrices_testing:
+    input:
+        "Pipeline_out/Classification/design_matrices/{condition}_all_testing_design_matrices_{background}.RDS",
+        "Pipeline_out/Classification/meta_data/{condition}_random_forest_testing_sample_meta_data_{background}.RDS"
+    output:
+        "Pipeline_out/Classification/design_matrices/{condition}_random_forest_testing_design_matrices_{background}.RDS"
+    script:
+        "scripts/Classification/preprocessing/subset_design_matrices.R"
+
+rule get_testing_set_HI:
+    input:
+        "Pipeline_out/Classification/results/{condition}_rf_models_{background}.RDS",
+        "Pipeline_out/Classification/design_matrices/{condition}_random_forest_testing_design_matrices_{background}.RDS"
+    output:
+        "Pipeline_out/Classification/predictions/{condition}_rf_testing_predictions_{background}.RDS"
+    script:
+        "scripts/Classification/analysis/get_testing_set_HI.R"
+
+rule preprocess_somalogic:
+    input:
+        "Inputs/Data/Somalogic/raw/v1/Cal_QC_CHI_Hyb.Cal.MedNorm_RFU.txt",
+        "Inputs/Data/Somalogic/raw/v1/Cal_QC_CHI_Samples.txt",
+        "Inputs/Data/Somalogic/raw/v1/Cal_QC_CHI_Somamers.txt",
+        "Inputs/Metadata/monogenic.de-identified.metadata.RData"
+    output:
+        "Pipeline_out/Data/Somalogic/processed/v1/testing_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/processed/v1/training_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/processed/v1/qc_somalogic.rds"
+    script:
+        "scripts/Somalogic/preprocessing/preprocess_somalogic.R"
+
+
+rule ready_somalogic_training:
+    input:
+        "Pipeline_out/Data/Somalogic/processed/v1/training_somalogic.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds"
+    script:
+        "scripts/Somalogic/preprocessing/ready_somalogic_training.R"
+
+
+rule ready_somalogic_testing:
+    input:
+        "Pipeline_out/Data/Somalogic/processed/v1/testing_somalogic.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_testing_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_testing_somalogic.rds"
+    script:
+        "scripts/Somalogic/preprocessing/ready_somalogic_testing.R"
+
+
+rule run_somalogic_wgcna:
+    input:
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_subject_level.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/variances.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/WGCNA_somalogic_intermediates.rds",
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_1/somalogic_outlier_removal_for_wgcna.pdf",
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_1/somalogic_wgcna_module_creation.pdf"
+    script:
+        "scripts/Somalogic/analysis/run_somalogic_wgcna.R"
+
+
+rule create_tbnk_eset:
+    input:
+        "Inputs/Metadata/monogenic.de-identified.metadata.RData"
+    output:
+        "Pipeline_out/Data/TBNK/processed/tbnk_eset_training.rds",
+        "Pipeline_out/Data/TBNK/processed/tbnk_eset_testing.rds"
+    script:
+        "scripts/TBNK/preprocessing/create_tbnk_eset.R"
+
+
+rule ready_tbnks_training:
+    input:
+        "Pipeline_out/Data/TBNK/processed/tbnk_eset_training.rds"
+    output:
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_subject_level_eset.rds"
+    script:
+        "scripts/TBNK/preprocessing/ready_tbnks_training.R"
+
+
+rule ready_tbnks_testing:
+    input:
+        "Pipeline_out/Data/TBNK/processed/tbnk_eset_testing.rds"
+    output:
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_testing_sample_level_eset.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_testing_subject_level_eset.rds"
+    script:
+        "scripts/TBNK/preprocessing/ready_tbnks_testing.R"
+
+
+rule clean_medications:
+    input:
+        "Inputs/Metadata/monogenic.de-identified.metadata.RData"
+    output:
+        "Pipeline_out/Data/Medications/medications.types.rds",
+        "Pipeline_out/Data/Medications/medications.names.rds"
+    script:
+        "scripts/Medications/preprocessing/clean_medications.R"
+
+
+rule run_variance_partitions:
+    input:
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_sample.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_features_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_modules_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_features_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_modules_standard_vp.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/tbnks_features_standard_vp.rds"
+    script:
+        "scripts/Stability/analysis/run_variance_partitions.R"
+
+
+rule select_stable_features:
+    input:
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_sample.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_subject_level.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_subject.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_subject_scores.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_subject_level_eset.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_features_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_modules_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_features_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_modules_standard_vp.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/tbnks_features_standard_vp.rds",
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_sample_level_features.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_sample_level_modules.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_sample_level_features.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_sample_level_modules.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/stable_tbnk_sample_level_features.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_features.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_modules.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_features.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_modules.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/stable_tbnk_subject_level_features.rds"
+    script:
+        "scripts/Stability/analysis/select_stable_features.R"
+
+
+rule make_proteomic_surrogate_signature:
+    input:
+        "Pipeline_out/Classification/results/healthy_rf_results_all.RDS",
+        "Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        "Pipeline_out/Classification/design_matrices/healthy_all_design_matrices_all.RDS"
+    output:
+        "Pipeline_out/Classification/proteomic_surrogates/healthy.index.surrogates.RDS",
+        "Pipeline_out/Classification/proteomic_surrogates/PC1.score.surrogates.RDS"
+    script:
+        "scripts/Signatures/analysis/make_proteomic_surrogate_signature.R"
+
+rule remove_unwanted_somamers:
+    input:
+        "Pipeline_out/Classification/proteomic_surrogates/healthy.index.surrogates.RDS",
+        "Pipeline_out/Classification/proteomic_surrogates/PC1.score.surrogates.RDS",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        "Inputs/Data/Somalogic/raw/v1/somamer_table.txt"
+    output:
+        "Pipeline_out/Classification/proteomic_surrogates/healthy.index.plasma.surrogates.RDS",
+        "Pipeline_out/Classification/proteomic_surrogates/healthy.index.plasma.surrogate.somaId.RDS",
+        "Pipeline_out/Classification/proteomic_surrogates/PC1.plasma.surrogates.RDS",
+        "Pipeline_out/Classification/proteomic_surrogates/PC1.plasma.surrogate.somaId.RDS"
+    script:
+        "scripts/Signatures/analysis/remove_unwanted_somamers.R"
+
+
+rule run_microarray_classifier:
+    input:
+        "Pipeline_out/Classification/design_matrices/healthy_all_design_matrices_all.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS"
+    output:
+        "Pipeline_out/Classification/transcriptional_surrogates/microarray_classifier_signatures.RDS"
+    script:
+        "scripts/Signatures/analysis/run_microarray_classifier.R"
+
+
+rule make_transcriptional_surrogate_signatures:
+    input:
+        "Pipeline_out/Classification/design_matrices/healthy_all_design_matrices_all.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_pvals_all.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_results_all.RDS",
+        "Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        "Pipeline_out/Classification/transcriptional_surrogates/microarray_classifier_signatures.RDS"
+    output:
+        "Pipeline_out/Classification/transcriptional_surrogates/surrogate_signatures.RDS"
+    script:
+        "scripts/Signatures/analysis/make_transcriptional_surrogate_signatures.R"
+
+
+rule get_DE_fits:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_sample.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_fit.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_fit.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_fit.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_fit.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_fit.rds"
+    script:
+        "scripts/DifferentialExpression/analysis/get_DE_fits.R"
+
+
+rule array_DE_feature_enrichments:
+    input:
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_fit.rds"
+    output:
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/enrichment/cameraPR_enrichment_list.rds" 
+    script:
+        "scripts/DifferentialExpression/feature_geneset_enrichments/run_enrich_camera.R"
+
+
+rule get_DE_stats:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_modules_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_features_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_modules_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_features_standard_vp.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/tbnks_features_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_fit.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_fit.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_fit.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_fit.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_fit.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_results.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_results.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_results.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_results.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_results.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_intermediates.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_intermediates.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_intermediates.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_intermediates.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_intermediates.rds"
+    script:
+        "scripts/DifferentialExpression/analysis/get_DE_stats.R"
+
+
+rule get_DE_fits_without_gamma_subjects:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_sample.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds",
+        "Pipeline_out/Data/Medications/medications.types.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_fit_no_gamma.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_fit_no_gamma.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_fit_no_gamma.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_fit_no_gamma.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_fit_no_gamma.rds"
+    script:
+        "scripts/DifferentialExpression/analysis/get_DE_fits_without_gamma_subjects.R"
+
+
+rule get_DE_stats_without_gamma_subjects:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_modules_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_features_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_modules_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_features_standard_vp.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/tbnks_features_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_fit_no_gamma.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_fit_no_gamma.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_fit_no_gamma.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_fit_no_gamma.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_fit_no_gamma.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_results_no_gamma.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_results_no_gamma.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_results_no_gamma.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_results_no_gamma.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_results_no_gamma.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_intermediates_no_gamma.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_intermediates_no_gamma.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_intermediates_no_gamma.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_intermediates_no_gamma.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_intermediates_no_gamma.rds"
+    script:
+        "scripts/DifferentialExpression/analysis/get_DE_stats.R"
+
+
+rule get_sex_based_DE_fits:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_sample.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/sex_related_de_signatures/somalogic_modules_DE_sex_linked_fit.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/sex_related_de_signatures/somalogic_features_DE_sex_linked_fit.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/sex_related_de_signatures/microarray_modules_DE_sex_linked_fit.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/sex_related_de_signatures/microarray_features_DE_sex_linked_fit.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/sex_related_de_signatures/tbnks_features_DE_sex_linked_fit.rds"
+    script:
+        "scripts/DifferentialExpression/analysis/get_sex_based_DE_fits.R"
+
+
+rule get_sex_based_DE_stats:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_modules_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_features_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_modules_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_features_standard_vp.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/tbnks_features_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/sex_related_de_signatures/somalogic_modules_DE_sex_linked_fit.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/sex_related_de_signatures/somalogic_features_DE_sex_linked_fit.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/sex_related_de_signatures/microarray_modules_DE_sex_linked_fit.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/sex_related_de_signatures/microarray_features_DE_sex_linked_fit.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/sex_related_de_signatures/tbnks_features_DE_sex_linked_fit.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/sex_related_de_signatures/somalogic_modules_DE_results.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/sex_related_de_signatures/somalogic_features_DE_results.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/sex_related_de_signatures/microarray_modules_DE_results.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/sex_related_de_signatures/microarray_features_DE_results.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/sex_related_de_signatures/tbnks_features_DE_results.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/sex_related_de_signatures/somalogic_modules_DE_intermediates.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/sex_related_de_signatures/somalogic_features_DE_intermediates.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/sex_related_de_signatures/microarray_modules_DE_intermediates.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/sex_related_de_signatures/microarray_features_DE_intermediates.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/sex_related_de_signatures/tbnks_features_DE_intermediates.rds"
+    script:
+        "scripts/DifferentialExpression/analysis/get_sex_based_DE_stats.R"
+
+
+rule process_ferrucci_data:
+    input:
+        "Inputs/Reference/ferrucci/raw/CHI-16-018_Hyb.Cal_RFU.txt.adat_RFU.txt",
+        "Inputs/Reference/ferrucci/raw/CHI-16-018_Hyb.Cal_RFU.txt.adat_Samples.txt",
+        "Inputs/Reference/ferrucci/raw/CHI-16-018_Hyb.Cal_RFU.txt.adat_Somamers.txt"
+    output:
+        "Pipeline_out/Reference/ferrucci/processed/aging_eset.RDS"
+    script:
+        "scripts/BaltimoreCohortValidation/preprocessing/process_ferrucci_data.R"
+
+rule get_series:
+    input:
+        expand("Inputs/Reference/jamboree/raw/series_matrices/{series}", series = SERIES_NAMES),
+        "Pipeline_out/Reference/jamboree/processed/jamboree_cgps.RDS"
+    output:
+        "Pipeline_out/Reference/jamboree/processed/series_matrix_list.rds"
+    script:
+        "scripts/MetaAnalysis/preprocessing/get_series.R"
+
+rule get_cgp_info:
+    input:
+        "Inputs/Reference/jamboree/raw/jam_human_DM1.txt",
+        "Inputs/Reference/jamboree/raw/jam_human_MS.txt",
+        "Inputs/Reference/jamboree/raw/jam_human_RA.txt",
+        "Inputs/Reference/jamboree/raw/jam_human_sarcoid.txt",
+        "Inputs/Reference/jamboree/raw/jam_human_SLE.txt"
+    output:
+        "Pipeline_out/Reference/jamboree/processed/jamboree_cgps.RDS"
+    script:
+        "scripts/MetaAnalysis/preprocessing/get_cgp_info.R"
+
+
+rule get_jamboree_data:
+    input:
+        "Inputs/Reference/jamboree/raw/jam_human_DM1.txt",
+        "Inputs/Reference/jamboree/raw/jam_human_MS.txt",
+        "Inputs/Reference/jamboree/raw/jam_human_RA.txt",
+        "Inputs/Reference/jamboree/raw/jam_human_sarcoid.txt",
+        "Inputs/Reference/jamboree/raw/jam_human_SLE.txt"
+    output:
+        "Pipeline_out/Reference/jamboree/processed/jamboree_data.RDS"
+    script:
+        "scripts/MetaAnalysis/preprocessing/get_jamboree_data.R"
+
+
+rule clean_cgps:
+    input:
+        "Pipeline_out/Reference/jamboree/processed/jamboree_cgps.RDS",
+        "Pipeline_out/Reference/jamboree/processed/series_matrix_list.rds"
+    output:
+        "Pipeline_out/Reference/jamboree/data_analysis_ready/cgps_clean.RDS"
+    script:
+        "scripts/MetaAnalysis/preprocessing/clean_cgps.R"
+
+
+rule clean_jamboree_data:
+    input:
+        "Pipeline_out/Reference/jamboree/processed/jamboree_data.RDS",
+        "Pipeline_out/Reference/jamboree/data_analysis_ready/cgps_clean.RDS"
+    output:
+        "Pipeline_out/Reference/jamboree/data_analysis_ready/meta_studies.RDS"
+    script:
+        "scripts/MetaAnalysis/preprocessing/clean_jamboree_data.R"
+
+
+rule get_jamboree_scores:
+    input:
+        "Pipeline_out/Reference/jamboree/data_analysis_ready/cgps_clean.RDS",
+        "Pipeline_out/Reference/jamboree/data_analysis_ready/meta_studies.RDS",
+        "Pipeline_out/Classification/transcriptional_surrogates/surrogate_signatures.RDS"
+    output:
+        "Pipeline_out/Reference/jamboree/analysis_output/meta_integrator_signature_scores.RDS",
+        "Pipeline_out/Reference/jamboree/analysis_output/meta_integrator_subset_signature_scores.RDS"
+    script:
+        "scripts/MetaAnalysis/preprocessing/get_jamboree_scores.R"
+
+
+rule results_scores:
+    input:
+        "Pipeline_out/Reference/jamboree/analysis_output/meta_integrator_signature_scores.RDS"
+    output:
+        "Pipeline_out/Reference/jamboree/analysis_output/results/jamboree_z_score_results.RDS"
+    script:
+        "scripts/MetaAnalysis/analysis/results_scores.R"
+
+
+rule results_enrichments:
+    input:
+        "Pipeline_out/Reference/jamboree/data_analysis_ready/meta_studies.RDS",
+        "Pipeline_out/Classification/transcriptional_surrogates/surrogate_signatures.RDS"
+    output:
+        "Pipeline_out/Reference/jamboree/analysis_output/results/jamboree_enrichment_results.RDS",
+        "Pipeline_out/Reference/jamboree/analysis_output/results/jamboree_gene_level_results.RDS"
+    script:
+        "scripts/MetaAnalysis/analysis/results_enrichments.R"
+
+
+rule make_gene_sets:
+    input:
+        "Inputs/Gene_sets/raw/GMTs/reactome.gmt",
+        "Inputs/Gene_sets/raw/GMTs/c5.bp.v6.2.symbols.gmt.txt",
+        "Inputs/Gene_sets/raw/GMTs/c2.cp.kegg.v6.2.symbols.gmt.txt",
+        "Inputs/Gene_sets/raw/BTMs/btm_annotation_table.txt"
+    output:
+        "Inputs/Gene_sets/processed/reactome.RDS",
+        "Inputs/Gene_sets/processed/go.bp.RDS",
+        "Inputs/Gene_sets/processed/kegg.RDS",
+        "Inputs/Gene_sets/processed/btm.rds",
+        "Inputs/Gene_sets/processed/combined_gene_sets.RDS"
+    script:
+        "scripts/Enrichments/preprocessing/make_gene_sets.R"
+
+
+rule process_protein_atlas:
+    input:
+        "Inputs/Gene_sets/raw/Human_protein_atlas/proteinatlas.tsv"
+    output:
+        "Inputs/Gene_sets/processed/tissue_gene_sets.RDS"
+    script:
+        "scripts/Enrichments/preprocessing/process_protein_atlas.R"
+
+
+rule microarray_modules_gene_set_enrichments:
+    input:
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        "Inputs/Gene_sets/processed/combined_gene_sets.RDS"
+    output:
+        "Pipeline_out/Data/Microarray/analysis_output/enrichments/microarray_module_gene_set_enrichments.RDS"
+    script:
+        "scripts/Enrichments/analysis/microarray_modules_gene_set_enrichments.R"
+
+
+rule somalogic_modules_gene_set_enrichments:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        "Inputs/Gene_sets/processed/combined_gene_sets.RDS",
+        "Inputs/Gene_sets/processed/tissue_gene_sets.RDS"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/enrichments/somalogic_module_gene_set_enrichments.RDS",
+        "Pipeline_out/Data/Somalogic/analysis_output/enrichments/somalogic_module_tissue_set_enrichments.RDS"
+    script:
+        "scripts/Enrichments/analysis/somalogic_modules_gene_set_enrichments.R"
+
+
+rule transcriptional_signature_enrichments:
+    input:
+        "Pipeline_out/Classification/transcriptional_surrogates/surrogate_signatures.RDS",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_subject.rds",
+        "Inputs/Gene_sets/processed/combined_gene_sets.RDS"
+    output:
+        "Pipeline_out/Classification/transcriptional_surrogates/surrogate_enrichments.RDS"
+    script:
+        "scripts/Enrichments/analysis/transcriptional_signature_enrichments.R"
+
+
+rule variance_partitions:
+    input:
+        "Pipeline_out/Data/Medications/medications.types.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_sample.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/variance_decomposition/somalogic_features_vp.RDS",
+        "Pipeline_out/Data/Somalogic/analysis_output/variance_decomposition/somalogic_modules_vp.RDS",
+        "Pipeline_out/Data/Microarray/analysis_output/variance_decomposition/microarray_features_vp.RDS",
+        "Pipeline_out/Data/Microarray/analysis_output/variance_decomposition/microarray_modules_vp.RDS",
+        "Pipeline_out/Data/TBNK/analysis_output/variance_decomposition/tbnk_features_vp.RDS"
+    script:
+        "scripts/VarianceDecomposition/analysis/variance_partitions.R"
+
+
+rule get_PID_based_HI_on_AI_subjects:
+    input:
+        "Pipeline_out/Classification/results/healthy_rf_models_PID.RDS",
+        "Pipeline_out/Classification/design_matrices/healthy_random_forest_design_matrices_all.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS"
+    output:
+        "Pipeline_out/Classification/predictions/healthy_rf_AI_predictions_using_PID_index.RDS"
+    script:
+        "scripts/Classification/analysis/get_PID_based_HI_on_AI_subjects.R"
+
+
+rule get_AI_based_HI_on_PID_subjects:
+    input:
+        "Pipeline_out/Classification/results/healthy_rf_models_AI.RDS",
+        "Pipeline_out/Classification/design_matrices/healthy_random_forest_design_matrices_all.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS"
+    output:
+        "Pipeline_out/Classification/predictions/healthy_rf_PID_predictions_using_AI_index.RDS"
+    script:
+        "scripts/Classification/analysis/get_AI_based_HI_on_PID_subjects.R"
+
+
+rule get_testing_set_somalogic_module_scores:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_testing_somalogic.rds"
+    output:
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level_testing.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_subject_level_testing.rds"
+    script:
+        "scripts/Somalogic/analysis/get_testing_set_somalogic_module_scores.R"
+
+
+rule get_testing_set_microarray_module_scores:
+    input:
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_subject.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_validation_sample.rds"
+    output:
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/scores_sample_level_testing.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/scores_subject_level_testing.rds"
+    script:
+        "scripts/Microarray/4_WGCNA/get_testing_set_microarray_module_scores.R"
+
+rule figure_1f_feat_varpart:
+    input:
+        "Inputs/Metadata/monogenic.de-identified.metadata.RData",
+        "Pipeline_out/Data/Microarray/analysis_output/variance_decomposition/microarray_features_vp.RDS",
+        "Pipeline_out/Data/Somalogic/analysis_output/variance_decomposition/somalogic_features_vp.RDS"
+    output:
+        e="Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1e_stable_feature_simulated_example.pdf",
+        f="Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/1f_feature_varpart.pdf",
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_1/figure_1_feat_varpart.R"
+
+rule figure_1f_tbnk_mod_vp:
+    input:
+        array_mod="Pipeline_out/Data/Microarray/analysis_output/variance_decomposition/microarray_modules_vp.RDS",
+        soma_mod="Pipeline_out/Data/Somalogic/analysis_output/variance_decomposition/somalogic_modules_vp.RDS",
+        tbnk="Pipeline_out/Data/TBNK/analysis_output/variance_decomposition/tbnk_features_vp.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/1g_tbnk_module_varpart.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_1/figure1_module_tbnk_vp.R"
+
+rule figure_1c_condition_counts:
+    input:
+        meta="Inputs/Metadata/monogenic.de-identified.metadata.RData",
+        cond_groups="Inputs/Reference/condition_groups.csv"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/condition_counts.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_1/figure1_condition_counts.R"
+
+rule figure_1de_module_heatmaps:
+    input:
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_features_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_subject.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_features_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/1d_proteomic_module_heatmap.png",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_1/1d_transcriptomic_module_heatmap.png"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_1/figure_1_module_heatmaps.R"
+
+
+rule supplemental_figure_4_mod_feature_level_heatmaps:
+    input:
+        soma_mod_de="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_results.rds",
+        soma_feat_de="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_results.rds",
+        array_mod_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_results.rds",
+        array_feat_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_results.rds",
+        tbnk_de="Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_results.rds",
+        soma_mods="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        array_mods="Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        cond_groups="Inputs/Reference/condition_groups.rds",
+        genesets="Inputs/Gene_sets/processed/combined_gene_sets.RDS",
+        protein_info="Inputs/Data/Somalogic/raw/v1/somamer_table.txt"
+    output:
+        red_dendro="Pipeline_out/Paper_1_Figures_20210929/Figure_2/red_TM1_ifn_subclus/red_dendro.pdf",
+        red_top_enrich="Pipeline_out/Paper_1_Figures_20210929/Figure_2/red_TM1_ifn_subclus/red_module_subcluster_enrich_top10.rds", 
+        red_subclus_dir=directory("Pipeline_out/Paper_1_Figures_20210929/Figure_2/red_TM1_ifn_subclus/subclusters"),
+        purple_pm2="Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_4/Supp_4c_purple_pm2_heatmap.pdf",
+        red_tm1="Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_4/Supp_4f_red_tm1_heatmap.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_4/Supplemental_Figure_4_version_3.R"
+
+
+rule figure_2_mod_feature_level_heatmaps_no_gamma:
+    input:
+        soma_mod_de="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_results_no_gamma.rds",
+        soma_feat_de="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_results_no_gamma.rds",
+        array_mod_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_results_no_gamma.rds",
+        array_feat_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_results_no_gamma.rds",
+        tbnk_de="Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_results_no_gamma.rds",
+        soma_mods="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        array_mods="Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        cond_groups="Inputs/Reference/condition_groups.rds",
+        genesets="Inputs/Gene_sets/processed/combined_gene_sets.RDS",
+        protein_info="Inputs/Data/Somalogic/raw/v1/somamer_table.txt"
+    output:
+        red_dendro="Pipeline_out/Paper_1_Figures_20210929/Figure_2/red_TM1_ifn_subclus/red_dendro_nogamma.pdf",
+        red_top_enrich="Pipeline_out/Paper_1_Figures_20210929/Figure_2/red_TM1_ifn_subclus/red_module_subcluster_enrich_top10_no_gamma.rds", 
+        red_subclus_dir=directory("Pipeline_out/Paper_1_Figures_20210929/Figure_2/red_TM1_ifn_subclus/subclusters_no_gamma"),
+        purple_pm2="Pipeline_out/Paper_1_Figures_20210929/Figure_2/purple_pm2_heatmap_no_gamma.pdf",
+        red_tm1="Pipeline_out/Paper_1_Figures_20210929/Figure_2/red_tm1_heatmap_no_gamma.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_4/Supplemental_Figure_4_version_3.R"
+
+rule supplemental_figure_4a:
+    input:
+        soma_mod_de="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_results.rds",
+        soma_feat_de="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_results.rds",
+        array_mod_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_results.rds",
+        array_feat_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_results.rds",
+        tbnk_de="Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_results.rds",
+        cond_groups="Inputs/Reference/condition_groups.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_4/Supp_4a_5a_tbnk_module_condition_bubble_plot.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_4/Supplemental_Figure_4a.R"
+
+rule supp_figure_3_n_subjects:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_subject_level.rds",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_subject_scores.rds",
+        "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_subject.rds",
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_subject_level_eset.rds",
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_3/Supp_3a_n_subjects.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_3/Supplemental_Figure_3_n_subjects.R"
+
+rule supplemental_figure_4_feat_highlight:
+    input:
+        tbnk_data="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds",
+        soma_mod_scores="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        array_mod_scores="Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        soma_mod_de='Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_results.rds',
+        soma_feat_de='Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_results.rds',
+        array_mod_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_results.rds",
+        array_feat_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_results.rds",
+        tbnk_de="Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_results.rds",
+        cond_groups="Inputs/Reference/condition_groups.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_4/Supp_4b_boxplots_of_select_features_v2.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_4/module_and_tbnk_boxplots_highlight.R"
+
+rule figure_2_feat_highlight_vertical:
+    input:
+        tbnk_data="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds",
+        soma_mod_scores="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_sample_level.rds",
+        array_mod_scores="Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_sample_scores.rds",
+        soma_mod_de='Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_results.rds',
+        soma_feat_de='Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_results.rds',
+        array_mod_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_results.rds",
+        array_feat_de="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_results.rds",
+        tbnk_de="Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_results.rds",
+        cond_groups="Inputs/Reference/condition_groups.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2/boxplots_of_select_features_v3_vertical.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_4/module_and_tbnk_boxplots_highlight.R"
+
+rule supplemental_figure_4_il23_boxplot:
+    input: 
+        soma_feat_data="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        soma_feat_de="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_results.rds",
+        cond_groups="Inputs/Reference/condition_groups.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_4/Supp_4d_IL23.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_4/IL23_box_and_corr_w_ifn_gamma.R"
+
+rule supplemental_figure_4_il23_tbnk_cor_dada2:
+    input:
+        tbnk_data="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_subject_level_eset.rds",
+        soma_feat_data="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds"
+        #tbnk_data="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds",
+        #soma_feat_data="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_4/Supp_4e_IL23_tbnk_cor_select_features.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_4/IL23_corr_w_tbnk.R"
+
+rule figure_3_jive_schematic:
+    output:
+        "figure_3a_jive_schematic.pdf"
+    script:
+        "scripts/Paper_Figures/Figure_3/figure3_schematic.R"
+
+rule figure_2d_jpc_scatter_box:
+    input:
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds",
+        cond_groups="Inputs/Reference/condition_groups.rds"
+    output:
+        jpc_scatter_box="Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2d_jive_scatter_plus_boxplots.pdf",
+        mad_plot="Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3f_mad_plot.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_2/2d_PCA_with_boxplots.R"
+        
+
+rule figure_2e_jpc1_wilcoxon_healthy:
+    input:
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2e_jpc1_hc_vs_all.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_2/2e_jpc1_healthy_vs_disease.R"
+
+rule figure_2f_jpc_comparison:
+    input:
+        all_subj="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        healthy_only="Pipeline_out/Integration_output/jive/subject_onlyHealthy/prcomp_list.rds",
+        no_healthy="Pipeline_out/Integration_output/jive/subject_noHealthy/prcomp_list.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2f_jive_pc_comparison.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_2/2f_jive_pc_comparison.R"
+
+rule figure_2c_jpc_tbnk_mod_cor:
+    input:
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        tbnk="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_subject_level_eset.rds",
+        soma_mod_scores="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_subject_level.rds",
+        array_mod_scores="Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_subject_scores.rds"
+    output:
+        figure="Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2c_jive_pc_cor.pdf",
+        table="Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pc_cor.csv"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_2/2c_joint_tbnk_module_cor.R"
+
+rule figure_2b_jive_var_expl:
+    input:
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_2/2b_jive_var_exp.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_2/2b_jive_var_expl.R"
+
+rule figure_3_IHM:
+    input:
+        "Pipeline_out/Classification/results/healthy_rf_results_all.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        "Pipeline_out/Classification/results/healthy_rf_pvals_all.RDS",
+        "Pipeline_out/Classification/transcriptional_surrogates/surrogate_enrichments.RDS",
+        "Pipeline_out/Classification/design_matrices/healthy_random_forest_design_matrices_all.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3b_IHM_ROC_LOO.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3def_IHM_age_cor_IHM_densityandboxplots.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3g_IHM_age_correlation.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_3/3c_IHM_significant_features_permutation_test.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_4/ED_4d_geneset_enrichment_of_proteomic_feature_transcriptional_correlates.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_3/figure_3.R"
+
+
+rule figure_3d_ IHM_transcriptomic_surrogate_meta_effects:
+    input:
+        "Pipeline_out/Reference/ferrucci/processed/aging_eset.RDS",
+        "Pipeline_out/Classification/proteomic_surrogates/healthy.index.plasma.surrogate.somaId.RDS",
+        "Pipeline_out/Reference/jamboree/analysis_output/results/jamboree_z_score_results.RDS",
+        "Pipeline_out/Reference/jamboree/data_analysis_ready/cgps_clean.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5/5.a.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Figure_4/4d_IHM_jPC1_transcriptomic_surrogate_meta_effects.pdf",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5/5.d.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Figure_4/4d_transcriptomic_surrogate_meta_effects.R"
+
+rule figure_5_il6_ihm_cor_ferrucci:
+    input:
+        aging_eset="Pipeline_out/Reference/ferrucci/processed/aging_eset.RDS",
+        proteomic_surrogate='Pipeline_out/Classification/proteomic_surrogates/healthy.index.plasma.surrogate.somaId.RDS'
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5/il6_cor_immune_health_metric_in_ferrucci_using_surrogate.pdf"
+    script:
+        "scripts/Paper_Figures/Figure_5/il6_ihm_cor_ferrucci_data.R"
+
+rule figure_5_il6_ihm_cor_monogenic:
+    input:
+        rf_results='Pipeline_out/Classification/results/healthy_rf_results_all.RDS',
+        rf_meta='Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS',
+        soma_data='Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds'
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_5/ED_5d_il6_cor_ihm_monogenic_healthy_and_disease.pdf",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5/il6_cor_ihm_monogenic_disease_only_large.pdf"
+    script:
+        "scripts/Paper_Figures/Figure_5/il6_ihm_cor.R"
+
+rule ED_figure_5_cxcl9_ihm_cor_monogenic:
+    input:
+        rf_results='Pipeline_out/Classification/results/healthy_rf_results_all.RDS',
+        rf_meta='Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS',
+        soma_data='Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds'
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_5/ED_5f_cxcl9_cor_ihm_monogenic_healthy_and_disease.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/ED_Figure_5/cxcl9_ihm_cor.R"
+
+
+rule ED_figure_1:
+    input:
+        "Inputs/Metadata/monogenic.de-identified.metadata.RData",
+        "Pipeline_out/Data/Microarray/analysis_output/variance_decomposition/microarray_features_vp.RDS",
+        "Pipeline_out/Data/Somalogic/analysis_output/variance_decomposition/somalogic_features_vp.RDS",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_modules_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_modules_standard_vp.rds",
+        "Pipeline_out/Data/TBNK/analysis_output/stability/tbnks_features_standard_vp.rds",
+        "Pipeline_out/Data/Microarray/analysis_output/stability/microarray_features_standard_vp.rds",
+        "Pipeline_out/Data/Somalogic/analysis_output/stability/somalogic_features_standard_vp.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1a_age_distributions.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1b_condition_age_distributions.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1c_gender_split_by_condition.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1h_feature_varpart_include_medication.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1f_module_varpart.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1g_feature_varpart_distribution.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/ED_Figure_1/ED_1_version_3.R"
+
+rule supplemental_figure_1_tbnk_mod_cor:
+    input:
+        tbnk="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_subject_level_eset.rds",
+        soma="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/scores_subject_level.rds",
+        array="Pipeline_out/Data/Microarray/analysis_output/WGCNA/array_subject_scores.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_1/ED_1d_cbctbnk_cor_modules.pdf"
+    script:
+        "scripts/Paper_Figures/Supplemental_Figure_1/tbnk_module_cor.R"
+
+rule ED_figure_2_tbnk_heatmap_pca:
+    input:
+        "Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_subject_level_eset.rds"
+    output:
+        heatmap="Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_2/ED_2a_tbnk_heatmap.pdf",
+        pca="Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_2/ED_2b_tbnk_pca.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/ED_Figure_2/tbnk_heatmap_pca.R"
+
+rule supplemental_figure_5_other_classifiers:
+    input:
+        healthy_meta="Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS",
+        healthy_res="Pipeline_out/Classification/results/healthy_rf_results_all.RDS",
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        healthy_pvals="Pipeline_out/Classification/results/healthy_rf_pvals_all.RDS",
+        soma_data="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        cgd_res="Pipeline_out/Classification/results/cgd_rf_results_all.RDS",
+        stat1_res="Pipeline_out/Classification/results/stat1_rf_results_all.RDS",
+        fmf_res="Pipeline_out/Classification/results/fmf_rf_results_all.RDS",
+        job_res="Pipeline_out/Classification/results/job_rf_results_all.RDS",
+        cgd_meta="Pipeline_out/Classification/meta_data/cgd_random_forest_sample_meta_data_all.RDS",
+        stat1_meta="Pipeline_out/Classification/meta_data/stat1_random_forest_sample_meta_data_all.RDS",
+        fmf_meta="Pipeline_out/Classification/meta_data/fmf_random_forest_sample_meta_data_all.RDS",
+        job_meta="Pipeline_out/Classification/meta_data/job_random_forest_sample_meta_data_all.RDS",
+        cgd_pvals="Pipeline_out/Classification/results/cgd_rf_pvals_all.RDS",
+        stat1_pvals="Pipeline_out/Classification/results/stat1_rf_pvals_all.RDS",
+        fmf_pvals="Pipeline_out/Classification/results/fmf_rf_pvals_all.RDS",
+        job_pvals="Pipeline_out/Classification/results/job_rf_pvals_all.RDS",
+        cgd_gvis='Pipeline_out/Classification/results/cgd_rf_gvis_all.RDS',
+        stat1_gvis='Pipeline_out/Classification/results/stat1_rf_gvis_all.RDS',
+        fmf_gvis='Pipeline_out/Classification/results/fmf_rf_gvis_all.RDS',
+        job_gvis='Pipeline_out/Classification/results/job_rf_gvis_all.RDS'
+    output:
+        auc_fig="Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_5/Supp_5b_condition_specific_classifier_aucs.pdf",
+        pval_fig="Pipeline_out/Paper_1_Figures_2024_03_15/Supp_Figure_5/Supp_5c_condition_specific_classifier_pvals.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/Supplemental_Figure_5/supplemental_figure_5_other_classifiers.R"
+
+rule ED_figure_3_array_ipc_scatter_box:
+    input:
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds"
+    output:
+        boxplots="Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3a_jive_array_indiv_boxplots.pdf",
+        scatter="Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3a_jive_array_indiv_scatter_w_centroids.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/ED_Figure_3/array_individual_scatter_and_boxplots.R"
+
+rule ED_figure_3_soma_ipc_scatter_box:
+    input:
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds"
+    output:
+        boxplots="Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3b_jive_soma_indiv_boxplots.pdf",
+        scatter="Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3b_jive_soma_indiv_scatter_w_centroids.pdf"
+    script:
+        "scripts/Paper_Figures/ED_Figure_3/soma_individual_scatter_and_boxplots.R"
+
+rule ED_figure_3_pc2_leuko_composite:
+    input:
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds",
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        tbnk="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_subject_level_eset.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3e_leuko_composite_pc2_cor.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3e_leuko_composite_GATA2_marrow.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3f_leuko_composite_separate_pc2_cor.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/ED_Figure_3/cor_PC2_leuko_composite.R"
+
+rule ED_figure_3_jpc1_enrich:
+    input:
+        "Pipeline_out/Integration_output/jive/subject/pc_enrich_dat_camera.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_3/ED_3cd_jive_pc_enrichments_joint_down_pc1.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/ED_Figure_3/jive_pca_enrich.R"
+
+rule supplemental_figure_3_cgd_jpc1:
+    input:
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds",
+        jive_pcs="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_3/cgd_jpc1.pdf"
+    script:
+        "scripts/Paper_Figures/Supplemental_Figure_3/cgd_jpc1.R"
+
+
+rule ED_figure_4:
+    input:
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_results_all.RDS",
+        "Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        "Pipeline_out/Classification/results/healthy_rf_pvals_all.RDS",
+        "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        "Pipeline_out/Classification/results/cgd_rf_results_all.RDS",
+        "Pipeline_out/Classification/results/stat1_rf_results_all.RDS",
+        "Pipeline_out/Classification/results/fmf_rf_results_all.RDS",
+        "Pipeline_out/Classification/results/job_rf_results_all.RDS",
+        "Pipeline_out/Classification/meta_data/cgd_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/meta_data/stat1_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/meta_data/fmf_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/meta_data/job_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/results/cgd_rf_pvals_all.RDS",
+        "Pipeline_out/Classification/results/stat1_rf_pvals_all.RDS",
+        "Pipeline_out/Classification/results/fmf_rf_pvals_all.RDS",
+        "Pipeline_out/Classification/results/job_rf_pvals_all.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_4/S4a.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_4/ED_4a_all_IHM_feature_combos_ROC.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_4/ED_4e_jive_pc_correlation_w_IHM.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_4/ED_4c_all_IHM_feature_combos_feature_pvals_permutation.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_5/ED_5a_jpc1_cor_age.pdf",
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_4/S4f.pdf",
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_4/S4g.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/ED_Figure_4/ED_figure_4_version_5.R"
+
+
+rule supplemental_figure_4_addendum:
+    input:
+        "Pipeline_out/Classification/results/healthy_rf_results_AI.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_pvals_AI.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_AI.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_results_PID.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_PID.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_pvals_PID.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_results_all.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_pvals_all.RDS",
+        "Pipeline_out/Classification/predictions/healthy_rf_PID_predictions_using_AI_index.RDS",
+        "Pipeline_out/Classification/predictions/healthy_rf_AI_predictions_using_PID_index.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Supplemental_Figure_4/figure_4_AI_and_PID_HI_addendum.pdf"
+    script:
+        "scripts/Paper_Figures/Supplemental_Figure_4/supplemental_figure_4_addendum_version_1.R"
+
+
+rule ED_figure_7ab:
+    input:
+        "Pipeline_out/Reference/jamboree/analysis_output/results/jamboree_z_score_results.RDS",
+        "Pipeline_out/Reference/jamboree/data_analysis_ready/cgps_clean.RDS",
+        "Pipeline_out/Reference/jamboree/analysis_output/results/jamboree_enrichment_results.RDS",
+        "Pipeline_out/Reference/ferrucci/processed/aging_eset.RDS",
+        "Pipeline_out/Classification/proteomic_surrogates/healthy.index.plasma.surrogate.somaId.RDS",
+        "Inputs/Reference/ferrucci/raw/acel12799-sup-0004-TableS3.txt"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_7/ED_7a_IHM_transcriptomic_surrogate_autoimmune_meta_analysis.pdf",
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_7/ED_7b_gene_level_autoimmune_meta_analysis_geneset_enrichment.pdf",
+    script:
+        "scripts/Paper_Figures/ED_Figure_7/supplemental_figure_7_version_4.R"
+
+rule ED_figure_5_IHM_no_pm2:
+    input:
+        "Pipeline_out/Classification/results_no_pm2/healthy_rf_results_all.RDS",
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_2024_03_15/Extended_Data_Figure_5/ED_5g_ihm_age_cor_no_pm2.pdf"
+    script:
+        "scripts/Paper_Figures_2024_03_15/ED_Figure_5/IHM_no_pm2_model_age_cor.R"
+
+rule figure_1_statistics:
+    input:
+        meta="Inputs/Metadata/monogenic.de-identified.metadata.RData",
+        tbnk="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_training_sample_level_eset.rds",
+        array="Pipeline_out/Data/Microarray/data_analysis_ready/eset_training_sample.rds",
+        soma="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds",
+        tbnk_test="Pipeline_out/Data/TBNK/data_analysis_ready/tbnk_testing_sample_level_eset.rds",
+        array_test="Pipeline_out/Data/Microarray/data_analysis_ready/eset_validation_sample.rds",
+        soma_test="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_testing_somalogic.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Statistics/figure_1_stats_version_1.html"
+    script:
+        "scripts/Paper_Figures/Figure_1_Statistics/figure_1_stats_version_1.Rmd"
+
+rule figure_2_statistics_other_classifiers:
+    input:
+        cgd_res="Pipeline_out/Classification/results/cgd_rf_results_all.RDS",
+        stat1_res="Pipeline_out/Classification/results/stat1_rf_results_all.RDS",
+        fmf_res="Pipeline_out/Classification/results/fmf_rf_results_all.RDS",
+        job_res="Pipeline_out/Classification/results/job_rf_results_all.RDS",
+        cgd_meta="Pipeline_out/Classification/meta_data/cgd_random_forest_sample_meta_data_all.RDS",
+        stat1_meta="Pipeline_out/Classification/meta_data/stat1_random_forest_sample_meta_data_all.RDS",
+        fmf_meta="Pipeline_out/Classification/meta_data/fmf_random_forest_sample_meta_data_all.RDS",
+        job_meta="Pipeline_out/Classification/meta_data/job_random_forest_sample_meta_data_all.RDS",
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_2_Statistics/supplemental_figure_2_other_classifiers_table.html"        
+    script:
+        "scripts/Paper_Figures/Figure_2_Statistics/supplemental_figure_2_other_classifiers_table.Rmd"
+
+rule figure_2_tables_cgd_stat1:
+    input:
+        tm1="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_fit.rds",
+        prot="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_fit.rds"
+    output:
+        tm1="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Statistics/cgd_stat1_ifn_tm1.csv",
+        prot="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Statistics/cgd_stat1_ifn_prots.csv"
+    script:
+        "scripts/Paper_Figures/Figure_2_Statistics/cgd_stat1_ifn.R"
+
+rule figure_4_statistics:
+    input:
+        "Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS",
+        "Pipeline_out/Classification/results/healthy_rf_results_all.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Statistics/figure_4_stats_version_1.html"        
+    script:
+        "scripts/Paper_Figures/Figure_4_Statistics/figure_4_stats_version_1.Rmd"
+
+rule figure_4_statistics_n_features_in_classifiers:
+    input:
+        "Pipeline_out/Classification/design_matrices/healthy_all_design_matrices_all.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Statistics/figure_4_stats_n_features_in_classifier.html"        
+    script:
+        "scripts/Paper_Figures/Figure_4_Statistics/n_features_used_classifiers.Rmd"
+
+rule figure_5_statistics:
+    input:
+        "Pipeline_out/Reference/ferrucci/processed/aging_eset.RDS",
+        "Pipeline_out/Classification/proteomic_surrogates/healthy.index.plasma.surrogate.somaId.RDS",
+        "Inputs/Reference/ferrucci/raw/acel12799-sup-0004-TableS3.txt"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5_Statistics/figure_5_stats_version_1.html"
+    script:
+        "scripts/Paper_Figures/Figure_5_Statistics/figure_5_stats_version_1.Rmd"
+
+rule figure_1_tables:
+    input:
+        "Pipeline_out/Data/Somalogic/analysis_output/enrichments/somalogic_module_gene_set_enrichments.RDS",
+        "Pipeline_out/Data/Somalogic/analysis_output/enrichments/somalogic_module_tissue_set_enrichments.RDS",
+        "Pipeline_out/Data/Microarray/analysis_output/enrichments/microarray_module_gene_set_enrichments.RDS",
+        "Inputs/Metadata/monogenic.de-identified.metadata.RData"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_gene_set_enrichments_table.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_tissues_set_enrichments_table.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/microarray_module_gene_set_enrichments_table.txt",
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/demographics_table.txt"
+    script:
+        "scripts/Paper_Figures/Figure_1_Tables/figure_1_tables_version_1.R"
+
+rule figure_1_tables_module_members:
+    input:
+        soma_mod="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        array_mod="Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        array_eset = "Pipeline_out/Data/Microarray/data_analysis_ready/eset_batch_training_subject.rds",
+        soma_eset = "Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds",
+        array_stability = "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_features.rds",
+        soma_stability = "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_features.rds"
+    output:
+        soma="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_members.csv",
+        array="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/microarray_module_members.csv",
+        array_feat_counts = "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/microarray_module_feat_counts.csv",
+        soma_feat_counts = "Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_feat_counts.csv"
+    script:
+        "scripts/Paper_Figures/Figure_1_Tables/figure_1_tables_module_members.R"
+
+rule figure_2_tables:
+    input:
+        soma_mods="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        array_mods="Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        soma_mods_res="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_intermediates.rds",
+        soma_feat_res="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_intermediates.rds",
+        array_mods_res="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_intermediates.rds",
+        array_feat_res="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_intermediates.rds",
+        tbnk_res="Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_intermediates.rds",
+        soma_data="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds"
+    output:
+        soma_feat="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/protein_features_DE_results.txt",
+        soma_mods="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/protein_modules_DE_results.txt",
+        array_feat="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/gene_features_DE_results.txt",
+        array_mods="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/gene_modules_DE_results.txt",
+        tbnk="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/cbc_and_tbnks_DE_results.txt"
+    script:
+        "scripts/Paper_Figures/Figure_2_Tables/figure_2_tables_version_2.R"
+
+rule figure_2_tables_no_gamma:
+    input:
+        soma_mods="Pipeline_out/Data/Somalogic/analysis_output/wgcna_results/modules.rds",
+        array_mods="Pipeline_out/Data/Microarray/analysis_output/WGCNA/modules.rds",
+        soma_mods_res="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_modules_DE_intermediates_no_gamma.rds",
+        soma_feat_res="Pipeline_out/Data/Somalogic/analysis_output/differential_expression/somalogic_features_DE_intermediates_no_gamma.rds",
+        array_mods_res="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_modules_DE_intermediates_no_gamma.rds",
+        array_feat_res="Pipeline_out/Data/Microarray/analysis_output/differential_expression/microarray_features_DE_intermediates_no_gamma.rds",
+        tbnk_res="Pipeline_out/Data/TBNK/analysis_output/differential_expression/tbnks_features_DE_intermediates_no_gamma.rds",
+        soma_data="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds"
+    output:
+        soma_feat="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/DE_res_no_gamma/protein_features_DE_results.txt",
+        soma_mods="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/DE_res_no_gamma/protein_modules_DE_results.txt",
+        array_feat="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/DE_res_no_gamma/gene_features_DE_results.txt",
+        array_mods="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/DE_res_no_gamma/gene_modules_DE_results.txt",
+        tbnk="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/DE_res_no_gamma/cbc_and_tbnks_DE_results.txt"
+    script:
+        "scripts/Paper_Figures/Figure_2_Tables/figure_2_tables_version_2.R"
+
+rule figure_3_tables_jpc_enrich:
+    input:
+        enrich="Pipeline_out/Integration_output/jive/subject/pc_enrich_dat_camera.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pc_enrichment.csv"
+    script:
+        "scripts/Paper_Figures/Figure_3_Tables/jpc_enrichments.R"
+
+rule figure_3_tables_jpc_scores:
+    input:
+        jive_pca="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        jive="Pipeline_out/Integration_output/jive/subject/jive.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pcs.csv"
+    script:
+        "scripts/Paper_Figures/Figure_3_Tables/jpc_scores.R"
+
+rule figure_3_jpc_feature_cor:
+    input:
+        jive_pca="Pipeline_out/Integration_output/jive/subject/prcomp_list.rds",
+        array = "Pipeline_out/Data/Microarray/analysis_output/stability/stable_microarray_subject_level_features.rds",
+        soma = "Pipeline_out/Data/Somalogic/analysis_output/stability/stable_somalogic_subject_level_features.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pc_feat_cor.csv"
+    script:
+        "scripts/Paper_Figures/Figure_3_Tables/jive_pc_feat_cor.R"
+
+rule figure_4_tables:
+    input:
+        gvis='Pipeline_out/Classification/results/healthy_rf_gvis_all.RDS',
+        pvals='Pipeline_out/Classification/results/healthy_rf_pvals_all.RDS',
+        soma_data='Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds'
+    output:
+        table='Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/healthy_feature_gvi_table.txt'
+    script:
+        "scripts/Paper_Figures/Figure_4_Tables/figure_4_tables_version_2.R"
+
+rule figure_4_tables_immune_health_metric:
+    input:
+        healthy_index='Pipeline_out/Classification/results/healthy_rf_results_all.RDS',
+        meta='Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS'
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/hi_results_full_mod.csv"
+    script:
+        "scripts/Paper_Figures/Figure_4_Tables/save_hi.R"
+
+rule figure_4_tables_metaanalysis:
+    input:
+        overall_res="Pipeline_out/Reference/jamboree/analysis_output/results/jamboree_z_score_results.RDS"
+    output:
+        pooled_tab='Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/figure_4_meta_analysis_table.txt',
+        effect_sizes='Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/figure_4_meta_analysis_effsize_table.txt'
+    script:
+        "scripts/Paper_Figures/Figure_4_Tables/save_meta_analysis_results.R"
+
+rule figure_4_tables_surrogate_sigs:
+    input:
+        "Pipeline_out/Classification/transcriptional_surrogates/surrogate_signatures.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/surrogate_sig_genes.csv"
+    script:
+        "scripts/Paper_Figures/Figure_4_Tables/save_surrogate_signature_genes.R"
+
+rule figure_4_meta_analysis_cgp_n_subj:
+    input:
+        orig_cgps="Pipeline_out/Reference/jamboree/processed/jamboree_cgps.RDS",
+        clean_cgps="Pipeline_out/Reference/jamboree/data_analysis_ready/cgps_clean.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/meta_analysis_n_subjects_per_study.csv"
+    script:
+        "scripts/Paper_Figures/Figure_4_Tables/meta_analysis_n_subj_per_study.R"
+
+rule figure_5_tables:
+    input:
+        "Pipeline_out/Reference/jamboree/analysis_output/results/jamboree_gene_level_results.RDS"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5_Tables/figure_5_meta_analysis_table.txt"
+    script:
+        "scripts/Paper_Figures/Figure_5_Tables/figure_5_tables_version_1.R"
+
+rule figure_5_tables_aging_proteomic_surrogate:
+    input:
+        sig="Pipeline_out/Classification/proteomic_surrogates/healthy.index.plasma.surrogate.somaId.RDS",
+        eset="Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_sample_level_training_somalogic.rds"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5_Tables/proteomic_surrogate_ihm.csv"
+    script:
+        "scripts/Paper_Figures/Figure_5_Tables/proteomic_hi_surrogate.R"
+
+rule figure_5_tables_cxcl9_ihm_age_regression:
+    input:
+        "Pipeline_out/Reference/ferrucci/processed/aging_eset.RDS",
+        'Pipeline_out/Classification/proteomic_surrogates/healthy.index.plasma.surrogate.somaId.RDS',
+        'Pipeline_out/Classification/results/healthy_rf_results_all.RDS', 
+        'Pipeline_out/Classification/meta_data/healthy_random_forest_sample_meta_data_all.RDS', 
+        'Pipeline_out/Data/Somalogic/data_analysis_ready/analysis_ready_subject_level_training_somalogic.rds'
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/Figure_5_Tables/cxcl9_ihm_age_regression.csv"
+    script:
+        "scripts/Paper_Figures/Figure_5_Tables/cxcl9_regress_age_ihm.R"
+
+
+rule compile_supp_tables_excel:
+    input:
+        tm_members="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/microarray_module_members.csv",
+        pm_members="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_members.csv",
+        tm_feat_counts="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/microarray_module_feat_counts.csv",
+        pm_feat_counts="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_feat_counts.csv",
+        tm_enrich="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/microarray_module_gene_set_enrichments_table.txt",
+        pm_enrich_genesets="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_gene_set_enrichments_table.txt",
+        pm_enrich_tissue="Pipeline_out/Paper_1_Figures_20210929/Figure_1_Tables/somalogic_module_tissues_set_enrichments_table.txt",
+        tbnk_de="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/cbc_and_tbnks_DE_results.txt",
+        pm_de="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/protein_modules_DE_results.txt",
+        tm_de="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/gene_modules_DE_results.txt",
+        t_feat_de="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/gene_features_DE_results.txt",
+        p_feat_de="Pipeline_out/Paper_1_Figures_20210929/Figure_2_Tables/protein_features_DE_results.txt",
+        jpcs="Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pcs.csv",
+        jpc_cor_tbnk="Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pc_cor.csv",
+        jive_pc_feat_cor="Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pc_feat_cor.csv",
+        jpc_enrich="Pipeline_out/Paper_1_Figures_20210929/Figure_3_Tables/jive_pc_enrichment.csv",
+        ihm_scores="Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/hi_results_full_mod.csv",
+        ihm_feat_gvi="Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/healthy_feature_gvi_table.txt",
+        meta_analysis_n_subj="Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/meta_analysis_n_subjects_per_study.csv",
+        meta_analysis="Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/figure_4_meta_analysis_table.txt",
+        study_eff_size="Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/figure_4_meta_analysis_effsize_table.txt",
+        sig_genes="Pipeline_out/Paper_1_Figures_20210929/Figure_4_Tables/surrogate_sig_genes.csv",
+        ihm_sig_prot="Pipeline_out/Paper_1_Figures_20210929/Figure_5_Tables/proteomic_surrogate_ihm.csv",
+        ihm_age_cxcl9="Pipeline_out/Paper_1_Figures_20210929/Figure_5_Tables/cxcl9_ihm_age_regression.csv"
+    output:
+        "Pipeline_out/Paper_1_Figures_20210929/supp_tables.xlsx"
+    script:
+        "scripts/Paper_Figures/compile_all_supp_tables_excel.R"
+

@@ -1,0 +1,69 @@
+---
+title: "IHM (combined genes) vs. SLEDAI scores"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Use the SLE cohort from the baseline paper (Kotliarov et al.,2020) to assess whether IHM transcriptional signature is associated with SLEDAI scores
+
+Figure 4e
+```{r setup}
+library(tidyverse)
+library(data.table)
+library(lme4)
+source(file.path("scripts","utils.R"))
+
+# IHM transcriptional surrogate
+ihm.sig <- readRDS(file.path("data","IHM","healthy_index_transcriptomic_signature_2021_04_19.rds"))
+
+# SLE cohort
+fn.si = file.path("data", "SLE", "SLE_sample_info_2_sle.txt")
+info = fread(fn.si, data.table=F)
+subject.SLEDAI.stat <- info %>% group_by(SUBJECT) %>% summarise_at(.vars=c("SLEDAI","DISEASE_ACTIVITY"),.funs=c("min","max","length"))
+subject.SLEDAI.stat$FLARE <- subject.SLEDAI.stat$SUBJECT %in% subset(info,FLARE == 1)$SUBJECT
+
+fn.ge = file.path("data", "SLE", "SLE_ge_matrix_gene_sle2.txt")
+dat <- read.table(fn.ge,row.names = 1,check.names = F)
+```
+
+### Calculate IHM Scores
+```{r score}
+IHM_score=calculate_signature_score(dat,ihm.sig$positive,ihm.sig$negative)#rbind(-dat[gi.ihm.neg,],dat[gi.ihm.pos,]))
+df.ihm.score = cbind(
+                dplyr::select(info, SUBJECT, VISIT, CUMULATIVE_TIME, SAMPLE_NAME,SLEDAI, GENDER, AGE, DA, PG, NEUTROPHIL_COUNT, LYMPHOCYTE_COUNT),
+                data.frame(IHM_score=IHM_score[info$SAMPLE_NAME]))
+df.ihm.score$NLR <- df.ihm.score$NEUTROPHIL_COUNT/df.ihm.score$LYMPHOCYTE_COUNT
+```
+
+### Association with DA
+```{r disease.activity}
+# association between SLEDAI and IHM
+df.ihm.score$DA <- factor(df.ihm.score$DA,levels = c("low","mid","high"))
+print(car::Anova(lmer(SLEDAI ~ IHM_score + AGE + GENDER + LYMPHOCYTE_COUNT + NEUTROPHIL_COUNT + (1|SUBJECT),df.ihm.score)))
+
+
+# calculate mean scores per disease activity label per subject
+df.mean <- as.data.frame(df.ihm.score %>% group_by(SUBJECT,DA,PG,GENDER) %>% 
+                           summarise_at(.vars=c("AGE","IHM_score"),.funs = mean))
+df.mean$DA <- factor(df.mean$DA,levels = c("low","mid","high"))
+df.mean.subjects.all.DA <- subset(df.mean,SUBJECT %in% names(which(table(df.mean$SUBJECT) == 3)))
+
+print(ggplot(df.mean.subjects.all.DA,aes_string("DA","IHM_score")) + 
+           geom_boxplot(outlier.shape = NA,aes(color=DA)) + ggsci::scale_color_jama() +
+           geom_line(aes(group=SUBJECT),alpha=0.2) + geom_point(size=1,alpha=0.5) +
+           ggpubr::stat_compare_means(comparisons = list(c(1,2),c(1,3),c(2,3)),paired = T) + theme_bw() + 
+           xlab("Disease Activity") + ylab("IHM transcriptional surrogate score") + ylim(NA,2.25))
+#ggsave(file.path("plots","IHM.v.DA.boxplot.pdf"),height=3,width=4)
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```

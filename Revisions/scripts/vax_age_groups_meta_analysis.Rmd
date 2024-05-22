@@ -1,0 +1,263 @@
+---
+title: "Baseline IHM vs. Vaccination response"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Meta-analysis on the effect of IHM on response to different vaccinations
+
+Figures 4h-i, Extended Data Figures 7f-g
+```{r setup,message=F}
+set.seed(869)
+library(tidyverse)
+library(MetaIntegrator)
+library(preprocessCore)
+library(limma)
+library(Biobase)
+library(metafor)
+library(viridis)
+source(file.path("scripts","utils.R"))
+
+# IHM transcriptomic
+ihm.sig <- readRDS(file.path("data","IHM","healthy_index_transcriptomic_signature_2021_04_19.rds"))
+signatures <- list(IHM=ihm.sig)
+
+# vaccination studies
+vax_eset <- readRDS(file.path("data","Vaccination","all_norm_withResponse_eset.rds"))
+# baseline timepoint
+vax_eset <- vax_eset[, vax_eset$study_time_collected == 0]
+meta <- pData(vax_eset)
+
+table(meta$study_accession, meta$MFC_p30)
+table(meta$study_accession, meta$MFC_p40)
+
+```
+
+### Create metaObject for young and old age groups together
+```{r create.together}
+pathogen_studies <- unique(paste(vax_eset$pathogen, vax_eset$study_accession))
+
+results = list()
+age_grp <- "old_and_young"
+metaObj = list()
+for(pathstud in pathogen_studies) {
+    keep_subj <- 
+            paste(vax_eset$pathogen, vax_eset$study_accession) == pathstud & 
+            #vax_eset$age_group == age_grp & 
+            vax_eset$MFC_p40 != "moderateResponder"
+    #check to make sure that there are subjects and that they are both old and young
+    if(sum(keep_subj) == 0 | length(unique(vax_eset$age_group[keep_subj])) == 1){
+      next()
+    }
+    #scores <- util.get_signature_scores(t(exprs(vax_eset[, keep_subj])), signatures)
+    scores <- do.call(cbind,lapply(signatures,function(sig){calculate_signature_score(exprs(vax_eset[, keep_subj]), sig$positive,sig$negative)}))
+    pathogen <- unique(vax_eset$pathogen)[keep_subj]
+
+    age <- vax_eset$age_imputed[keep_subj]
+    ## Get the data for the desired genes and gsms in this study
+
+    expr = t(scores)
+    expr_rm_age <- limma::removeBatchEffect(expr, covariates = age)
+    rownames(expr_rm_age) <- paste0(rownames(expr_rm_age), ".rm_age")
+
+    expr = rbind(expr, age, expr_rm_age)
+
+    
+    ## Create an empty object to hold the data
+    dataObj = list()
+    
+    ## Create a data frame with the gsms for the pheno slot in the dataObj
+    dataObj$pheno = pData(vax_eset)[keep_subj, ]
+    rownames(dataObj$pheno) <- colnames(expr)
+    
+    
+    ## Set the name associated with the study in the data object to be the study name
+    formattedname <- make.names(paste(pathstud, age_grp))
+    dataObj$formattedName = formattedname
+    
+    ## Set the classes associated with each case to be 1 and 
+    ## controls to be 0
+    dataObj$class = (dataObj$pheno$MFC_p40 == "highResponder") * 1
+    if(sum(dataObj$class) < 4 | sum(dataObj$class == 0) < 4){
+      next()
+    }
+
+    ## Name the classes with the gsms
+    names(dataObj$class) = colnames(expr)
+
+    ## Add the data to the dataObj
+    dataObj$expr = expr
+    ## Add the genes to the data obj
+    dataObj$keys = rownames(expr)
+    ## Check that the dataObj is in an acceptable form for metaIntegrator
+    stopifnot(checkDataObject(dataObj,"Dataset"))
+    ## Add this dataObject to the list of metaObjects
+    metaObj[[formattedname]] = dataObj
+
+}
+
+# Wrap the metaObj in a list
+metaObj = list(originalData = metaObj)
+# Check the the metaObj is in an acceptable form for metaIntegrator
+stopifnot(checkDataObject(metaObj, "Meta", "Pre-Analysis"))
+```
+
+### Run Meta-analysis
+```{r meta.analysis}
+results= runMetaAnalysis(metaObj,maxCores = 1)
+vax.metadata <- phenoData(vax_eset)@data
+vax.metadata$study_id <- make.names(paste0(vax.metadata$pathogen,".",vax.metadata$study_accession,".",vax.metadata$age_group))
+
+for (i in c("IHM","IHM.rm_age")) {
+  metric <- i
+  age_group <- "old_and_young"
+  x <- results$metaAnalysis$datasetEffectSizes[metric,]
+  sei <- results$metaAnalysis$datasetEffectSizeStandardErrors[metric,]
+  summary.stat <- results$metaAnalysis$pooledResults[metric,]
+  x <- x[order(names(x))]
+  sei <- sei[order(names(sei))]
+  
+  xlabels <- gsub(paste0(".",age_group),"",names(x))
+  xlabels <- do.call(rbind,sapply(xlabels,strsplit,"SDY"))
+  xlabels[,2] <- paste0("SDY",xlabels[,2])
+  xlabels[,1] <- trimws(gsub("."," ",xlabels[,1],fixed=T))
+  names(x) <- paste0(xlabels[,2]," (",xlabels[,1],")")
+  #pdf(file.path("plots",paste0("all_vax_old_young_combined_MFC_p40_zscore_within_studies_with_big_age_range.",i,".v2.pdf")))
+  forest.default(x = x, sei = sei, slab = names(x), ylim = c(-2.5,14),
+                 xlab = paste0(" \np=",round(summary.stat[,"effectSizePval"],4)),header = T)
+  addpoly(x=summary.stat[,"effectSize"],sei=summary.stat[,"effectSizeStandardError"],mlab = "Summary",col="red",border="red")
+  title(paste0(metric," - ",age_group))
+  #dev.off()
+  
+  # age distribution
+  included.studies <- gsub(".old_and_young","",names(results$originalData))
+  print(ggplot(subset(vax.metadata,gsub(".young|.extendedOld","",study_id) %in% included.studies),aes(age_imputed,fill=age_group)) +
+          geom_density(alpha=0.5) + theme_bw() + xlab("Age") + theme(legend.position = "bottom") + xlim(18,90) + scale_fill_viridis_d())
+  #ggsave(file.path("plots",paste0("all_vax_old_young_combined_MFC_p40_zscore_within_studies_with_big_age_range.",i,".age.dist.pdf")),width=5,height=2)
+}
+```
+
+### Run meta-analysis for young and old age groups independently
+```{r separate.groups}
+results = list()
+for(age_grp in c("extendedOld", "young")){
+  metaObj = list()
+  for(pathstud in pathogen_studies) {
+      keep_subj <- 
+              paste(vax_eset$pathogen, vax_eset$study_accession) == pathstud & 
+              vax_eset$age_group == age_grp & 
+              vax_eset$MFC_p40 != "moderateResponder"
+      if(sum(keep_subj) == 0){
+        next()
+      }
+
+      scores <- do.call(cbind,lapply(signatures,function(sig){calculate_signature_score(exprs(vax_eset[, keep_subj]), sig$positive,sig$negative)}))
+
+      pathogen <- unique(vax_eset$pathogen[keep_subj])
+      age <- vax_eset$age_imputed[keep_subj]
+      ## Get the data for the desired genes and gsms in this study
+
+      expr = t(scores)
+      expr_rm_age <- limma::removeBatchEffect(expr, covariates = age)
+      rownames(expr_rm_age) <- paste0(rownames(expr_rm_age), ".rm_age")
+
+      expr = rbind(expr, age, expr_rm_age)
+
+      
+      ## Create an empty object to hold the data
+      dataObj = list()
+      
+      ## Create a data frame with the gsms for the pheno slot in the dataObj
+      dataObj$pheno = pData(vax_eset)[keep_subj, ]
+      rownames(dataObj$pheno) <- colnames(expr)
+      
+      
+      ## Set the name associated with the study in the data object to be the study name
+      formattedname <- make.names(paste(pathstud, age_grp))
+      dataObj$formattedName = formattedname
+      
+      
+      ## Set the classes associated with each case to be 1 and 
+      ## controls to be 0
+      dataObj$class = (dataObj$pheno$MFC_p40 == "highResponder") * 1
+      if(sum(dataObj$class) < 4 | sum(dataObj$class == 0) < 4){
+        next()
+      }
+
+      ## Name the classes with the gsms
+      names(dataObj$class) = colnames(expr)
+
+      ## Add the data to the dataObj
+      dataObj$expr = expr
+      ## Add the genes to the data obj
+      dataObj$keys = rownames(expr)
+      ## Check that the dataObj is in an acceptable form for metaIntegrator
+      stopifnot(checkDataObject(dataObj,"Dataset"))
+      ## Add this dataObject to the list of metaObjects
+      metaObj[[formattedname]] = dataObj
+
+  }
+  # Wrap the metaObj in a list
+  metaObj = list(originalData = metaObj)
+  # Check the the metaObj is in an acceptable form for metaIntegrator
+  stopifnot(checkDataObject(metaObj, "Meta", "Pre-Analysis"))
+  
+  # Save the results
+  #saveRDS(metaObj, META.OUT.PATH)
+  
+  
+  results[[age_grp]] = runMetaAnalysis(metaObj,maxCores = 1)
+}
+```
+
+```{r plots}
+x <- results$extendedOld$metaAnalysis$datasetEffectSizes["IHM", ]
+sei <- results$extendedOld$metaAnalysis$datasetEffectSizeStandardErrors["IHM", ]
+x <- x[order(names(x))]
+sei <- sei[order(names(sei))]
+
+vax.metadata <- phenoData(vax_eset)@data
+vax.metadata$study_id <- make.names(paste0(vax.metadata$pathogen,".",vax.metadata$study_accession,".",vax.metadata$age_group))
+for (i in c("young","extendedOld")) {
+  metric <- "IHM"
+  age_group <- i
+  x <- results[[age_group]]$metaAnalysis$datasetEffectSizes[metric,]
+  #x <- results$extendedOld$metaAnalysis$datasetEffectSizes["healthy.index", ]
+  sei <- results[[age_group]]$metaAnalysis$datasetEffectSizeStandardErrors[metric,]
+  #sei <- results$extendedOld$metaAnalysis$datasetEffectSizeStandardErrors["healthy.index", ]
+  summary.stat <- results[[age_group]]$metaAnalysis$pooledResults[metric,]
+  x <- x[order(names(x))]
+  sei <- sei[order(names(sei))]
+  
+  xlabels <- gsub(paste0(".",age_group),"",names(x))
+  xlabels <- do.call(rbind,sapply(xlabels,strsplit,"SDY"))
+  xlabels[,2] <- paste0("SDY",xlabels[,2])
+  xlabels[,1] <- trimws(gsub("."," ",xlabels[,1],fixed=T))
+  names(x) <- paste0(xlabels[,2]," (",xlabels[,1],")")
+  #pdf(paste0("plots/all_vax_old_young_combined_MFC_p40_zscore_within_studies.",i,".v2.pdf"))
+  forest.default(x = x, sei = sei, slab = names(x), ylim = c(-2,21),
+                 xlab = paste0(" \np=",round(summary.stat[,"effectSizePval"],4)),header = T)
+  addpoly(x=summary.stat[,"effectSize"],sei=summary.stat[,"effectSizeStandardError"],mlab = "Summary",col="red",border="red")
+  title(paste0(metric," - ",age_group))
+  #dev.off()
+  
+  # age distribution
+  included.studies <- names(results[[age_group]]$originalData)
+  print(ggplot(subset(vax.metadata,study_id %in% included.studies),aes(age_imputed,fill=age_group)) +
+          geom_density(alpha=0.5) + theme_bw() + xlab("Age") + theme(legend.position = "bottom") + xlim(18,90) + 
+          scale_fill_manual(values=rev(viridis::viridis_pal()(2))))
+  #ggsave(paste0("plots/all_vax_old_young_combined_MFC_p40_zscore_within_studies.",i,".age.dist.pdf"),width=5,height=2)
+}
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```

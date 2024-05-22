@@ -1,0 +1,2 @@
+
+snakemake  -j 100 --cluster-config cluster_config.json --cluster "qsub -terse -l quick,avx2,mem_free={cluster.mem_free},h_vmem={cluster.h_vmem} {cluster.parallel_opts}" --use-singularity --keep-going

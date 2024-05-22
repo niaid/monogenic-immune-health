@@ -1,0 +1,60 @@
+---
+title: "IHM vs. BMI association"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+
+BMI with somalogic measurements from Robbins et al., Nature Metabolism, 2021
+
+Extended Data Figure 7i
+```{r setup}
+library(tidyverse)
+library(ggpubr)
+source(file.path("scripts","utils.R"))
+
+
+heritage.proteins <- read.csv(file.path("data","CardiacFitness","HERITAGE_proteomics_somalogic.csv"),strip.white = T,stringsAsFactors = F)
+heritage.proteins <- subset(heritage.proteins,!is.na(Sample.Subject.ID))
+protein.names <- read.csv(file.path("data","CardiacFitness","HERITAGE_proteomics_protein_info.csv"),strip.white = T,stringsAsFactors = F)
+ihm.proteins <- read.csv(file.path("data","IHM","IHM.protein.signature.txt"),sep = "\t",strip.white = T,stringsAsFactors = F)
+```
+
+### Calculate IHM scores on cardiac fitness cohort
+```{r scoring}
+selected.pos.proteins <- subset(protein.names,UniProt %in% subset(ihm.proteins,direction == "positive")$UniProt)$Soma.ID
+selected.neg.proteins <- subset(protein.names,UniProt %in% subset(ihm.proteins,direction == "negative")$UniProt)$Soma.ID
+
+ihm.combined.scores <- calculate_signature_score(t(heritage.proteins[,intersect(colnames(heritage.proteins),protein.names$Soma.ID)]),
+                                                 selected.pos.proteins,selected.neg.proteins)
+heritage.proteins$IHM.score <- ihm.combined.scores
+```
+
+### Association
+```{r asso}
+heritage.proteins$age.group <- cut(heritage.proteins$Age,c(0,25,50,75))
+heritage.proteins$Delta.VO2MX.fraction <- heritage.proteins$Delta.VO2MX..ml.min./heritage.proteins$Baseline.VO2MX..ml.min.
+table(heritage.proteins$age.group,heritage.proteins$Sex,useNA = "always")
+
+# association with BMI
+hist(heritage.proteins$BMI,20,main="Exercise Cohort",xlab="BMI")
+print(ggplot(heritage.proteins,aes_string("IHM.score","BMI")) + geom_point(alpha=0.75) + 
+  stat_cor(method="spearman",cor.coef.name = "rho") + theme_bw() + xlab("IHM protein surrogate score"))
+#ggsave("IHM.v.BMI.scatterplot.pdf",width=3,height=3)
+heritage.proteins$CRP <- heritage.proteins$B_SL000051
+cat("Association between BMI and IHM:\n")
+car::Anova(lm(BMI ~ Sex + Race + Age + IHM.score + CRP,heritage.proteins))
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```
+

@@ -1,0 +1,105 @@
+---
+title: "Autoimmune patients vs. HCs"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Use cell-specific datasets from Ota et al. to compare different transcriptional signatures
+
+Extended Data Figures 5j-k
+```{r setup,message=F}
+set.seed(869)
+library(tidyverse)
+library(ggpubr)
+library(Biobase)
+library(BiocGenerics)
+library(pROC)
+source(file.path("scripts","utils.R"))
+
+# IHM transcriptomic
+ihm.sig <- readRDS(file.path("data","IHM","healthy_index_transcriptomic_signature_2021_04_19.rds"))
+signatures <- list(IHM=ihm.sig)
+
+# IMM-Age
+imm.age.data <- read.csv(file.path("data","external_signatures","IMM_AGE.transcriptional.signature.txt"),sep = "\t")
+imm.age.sig.pos <- subset(imm.age.data,direction.along.IMM.AGE.axis == 1)$gene.symbol
+imm.age.sig.neg <- subset(imm.age.data,direction.along.IMM.AGE.axis == -1)$gene.symbol
+signatures$IMMAGE$positive <- imm.age.sig.pos
+signatures$IMMAGE$negative <- imm.age.sig.neg 
+
+# Tuller et al. signatures
+pan.disease.sig <- readRDS(file.path("data","external_signatures","tuller.disease.signatures.RDS"))
+pan.disease.sig <- pan.disease.sig[7:9]
+names(pan.disease.sig) <- paste0("pan",names(pan.disease.sig))
+signatures <- c(signatures,pan.disease.sig)
+```
+
+### Calculate transcriptional signature scores for Ota dataset
+```{r score,out.width="900px"}
+cpm_list <- readRDS(file.path("data","ota_2021","cpm_list_rm_batch_phase.rds"))
+
+ota.data <- lapply(cpm_list, function(y){
+  print("starting")
+  scores <- do.call(cbind,lapply(signatures,function(sig){calculate_signature_score(y$cpm, sig$positive,sig$negative)}))
+  list(scores = scores, meta = y$meta)
+})
+
+ota.healthy.scores <- lapply(ota.data,function(x){data.frame(x$scores,condition=x$meta[,"disease"])})
+```
+
+### HC vs. patients Classification
+```{r classification}
+#pdf("ota.condition.auc.curve.by.celltype.tuller.pdf",height=3,width=3)
+condition.v.hc.median.ihm <- data.frame()
+condition.v.hc.auc <- data.frame()
+score.type.color <- ggsci::pal_d3()(length(signatures))
+# All
+for (i in names(ota.healthy.scores)) {
+  scores <- ota.healthy.scores[[i]]
+  index = 0
+  for (j in names(signatures)) {
+    if (sum(!is.na(scores[,j])) > 0) {
+      res <- roc(controls=scores[scores[,"condition"] == "HC",j],
+                 cases=scores[scores[,"condition"] != "HC",j])
+      condition.v.hc.auc <- rbind(condition.v.hc.auc,data.frame(cell.type=i,sig=j,condition="All",auc=res$auc,
+                                                                num.hc=length(res$controls),num.case=length(res$cases)))
+      plot(res,print.auc=T,add=ifelse(index == 0,F,T),print.auc.y = 0.7 - index*0.1,print.auc.x = 0.5,
+         col=score.type.color[index+1],print.auc.col=score.type.color[index+1],print.auc.cex=0.75)
+      index = index + 1
+    }
+  }
+  title(i,cex.main=0.75,line=2.5)
+}
+#dev.off()
+
+cell.types <- unique(condition.v.hc.auc$cell.type)
+cell.type.group <- setNames(rep("Others",length(cell.types)),cell.types)
+cell.type.group[grep("^T|^Fr|CD4",names(cell.type.group))] <- "CD4 T cells"
+cell.type.group[grep("CD8",names(cell.type.group))] <- "CD8 T cells"
+cell.type.group[grep("_B",names(cell.type.group))] <- "B cells"
+cell.type.group[grep("_Mono",names(cell.type.group))] <- "Monocytes"
+
+condition.v.hc.auc$lineage <- cell.type.group[condition.v.hc.auc$cell.type]
+condition.v.hc.auc$sig <- gsub("healthy.index","IHM",condition.v.hc.auc$sig)
+condition.v.hc.auc$sig <- factor(condition.v.hc.auc$sig,levels = c("IHM","IMMAGE",names(pan.disease.sig)))
+ggplot(subset(condition.v.hc.auc,condition == "All" & sig %in% c("IHM","IMMAGE",paste0("pan",2:4,"_ANOVA"))),aes(sig,auc)) + 
+  geom_boxplot(outlier.shape = NA) +
+  geom_line(aes(group=cell.type,color=lineage),alpha=0.4) + geom_point(aes(color=lineage),alpha=0.7) + 
+  geom_hline(yintercept = 0.5,color="red",linetype="dashed") + ylim(NA,.9) +
+  stat_compare_means(ref.group = "IHM",label = "p.format",size=3,paired = T) + theme_bw() +
+  theme(axis.text.x = element_text(angle=30,hjust = 1)) + xlab("Signatures") +
+  ggsci::scale_color_d3() + ggtitle("Each circle is a cell type")
+#ggsave("ota.condition.auc.combined.by.condition.overall.tuller.v2.pdf",height=4,width=6)
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```

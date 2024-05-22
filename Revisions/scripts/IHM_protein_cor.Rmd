@@ -1,0 +1,193 @@
+---
+title: "IHM protein surrogate vs. individual proteins"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Extended Data Figure 6
+```{r setup,message=F}
+set.seed(869)
+library(tidyverse)
+library(ggpubr)
+library(ggrepel)
+library(Biobase)
+library(BiocGenerics)
+library(limma)
+source(file.path("scripts","utils.R"))
+
+# IHM proteomics 
+ihm.soma.sig <- read.csv(file.path("data","IHM","IHM.protein.signature.txt"),sep = "\t",strip.white = T,stringsAsFactors = F)
+soma_eset <- readRDS(file.path("data","Pan_Monogenic","analysis_ready_subject_level_training_somalogic.rds"))
+soma_mat <- exprs(soma_eset)
+
+# IHM transcriptomic
+ihm.sig <- readRDS(file.path("data","IHM","healthy_index_transcriptomic_signature_2021_04_19.rds"))
+jPC.sig <- readRDS(file.path("data","IHM","jPC1_transcriptomic_signature.rds"))
+array_eset <- readRDS(file.path("data","Pan_Monogenic","eset_batch_training.rds"))
+expr <- exprs(array_eset)
+sample.metadata <- sample.metadata <- array_eset@phenoData@data
+sample.metadata$IHM_gene_score <- calculate_signature_score(expr,ihm.sig$positive,ihm.sig$negative)
+sample.metadata$jPC1_gene_score <- calculate_signature_score(expr,jPC.sig$positive,jPC.sig$negative)
+sample.subject.mean <- as.data.frame(sample.metadata %>% group_by(patient_id,condition,race,gender) %>% 
+  summarise_at(.vars=c("IHM_gene_score","jPC1_gene_score","patient_age_at_time_of_blood_draw"),.funs = mean)) %>% column_to_rownames("patient_id")
+```
+
+```{r}
+scores <- sample.subject.mean[,c("IHM_gene_score","jPC1_gene_score")]
+
+do_cor <- function(x, y){
+  intersecting_pats <- intersect(rownames(x), rownames(y))
+  r <- cor(y[intersecting_pats, ], x[intersecting_pats, ])
+  
+  n <- length(intersecting_pats)
+  # see for formula - https://courses.lumenlearning.com/introstats1/chapter/testing-the-significance-of-the-correlation-coefficient/#:~:text=The%20p%2Dvalue%20is%20calculated,%E2%88%92%202%201%20%E2%88%92%20r%202%20.
+  t_mat <- r * sqrt(n -2) / sqrt(1-r^2)
+  library(txtplot)
+  txtdensity(t_mat)
+  
+  p_mat <- pt(-abs(t_mat), df = n -2) * 2
+  
+  txtdensity(p_mat)
+  
+  p_adj_mat <- t(apply(p_mat, 1, p.adjust, method = "fdr"))
+  txtdensity(p_adj_mat)
+  
+  #table(p_adj_mat[, "IHM_gene_score"] < .05)
+  #table(p_adj_mat[, "PC1"] < .05)
+  
+  dat_list <- lapply(colnames(p_adj_mat), function(nm){
+    data.frame(
+      feature = rownames(p_adj_mat),
+      r = r[, nm],
+      t = t_mat[, nm],
+      p = p_mat[, nm],
+      p_adj = p_adj_mat[, nm],
+      EntrezGeneID = featureData(soma_eset)$EntrezGeneID
+      #is_cytokine = featureData(soma_eset)$EntrezGeneID %in% 
+      #        cytokines$`EntrezGeneID (Human)`
+    )
+  })
+  names(dat_list) <- colnames(p_adj_mat)
+  dat_list
+
+}
+
+intersecting_pats_healthy <- intersect(rownames(scores), soma_eset$patient_id[soma_eset$condition == "Healthy"])
+scores_sub_healthy <- scores[intersecting_pats_healthy, ]
+soma_eset_sub_healthy <- soma_eset[, intersecting_pats_healthy]
+scores_age_healthy <- soma_eset$Age[match(rownames(scores_sub_healthy), soma_eset$patient_id)]
+scores_rm_age_healthy <- t(removeBatchEffect(t(scores_sub_healthy), covariates = scores_age_healthy))
+soma_rm_age_healthy <- t(removeBatchEffect(exprs(soma_eset_sub_healthy), covariates = soma_eset_sub_healthy$Age))
+
+intersecting_pats_disease <- intersect(rownames(scores), soma_eset$patient_id[soma_eset$condition != "Healthy"])
+scores_sub_disease <- scores[intersecting_pats_disease, ]
+soma_eset_sub_disease <- soma_eset[, intersecting_pats_disease]
+scores_age_disease <- soma_eset$Age[match(rownames(scores_sub_disease), soma_eset$patient_id)]
+scores_rm_age_disease <- t(removeBatchEffect(t(scores_sub_disease),covariates = scores_age_disease))
+soma_rm_age_disease <- t(removeBatchEffect(exprs(soma_eset_sub_disease), covariates = soma_eset_sub_disease$Age))
+
+intersecting_pats_all <- intersect(rownames(scores), soma_eset$patient_id)
+scores_sub_all <- scores[intersecting_pats_all, ]
+soma_eset_sub_all <- soma_eset[, intersecting_pats_all]
+scores_age_all <- soma_eset$Age[match(rownames(scores_sub_all), soma_eset$patient_id)]
+scores_rm_age_all <- t(removeBatchEffect(t(scores_sub_all), covariates = scores_age_all))
+soma_rm_age_all <- t(removeBatchEffect(exprs(soma_eset_sub_all), covariates = soma_eset_sub_all$Age))
+
+dat_list_all <- do_cor(scores, t(soma_mat))
+dat_list_all_partial_age <- do_cor(scores_rm_age_all, soma_rm_age_all)
+
+dat_list_healthy_only <- do_cor(scores_sub_healthy, t(soma_mat)[rownames(scores_sub_healthy), ])
+dat_list_healthy_only_partial_age <- do_cor(scores_rm_age_healthy, soma_rm_age_healthy)
+dat_list_disease_only <- do_cor(scores_sub_disease, t(soma_mat)[rownames(scores_sub_disease), ])
+dat_list_disease_only_partial_age <- do_cor(scores_rm_age_disease, soma_rm_age_disease)
+
+combined_dat <- data.frame(
+  all_cor = dat_list_all$IHM_gene_score$r, 
+  all_fdr = dat_list_all$IHM_gene_score$p_adj, 
+  healthy_cor = dat_list_healthy_only$IHM_gene_score$r,
+  healthy_cor_partial_age = dat_list_healthy_only_partial_age$IHM_gene_score$r,
+  all_cor_partial_age = dat_list_all_partial_age$IHM_gene_score$r,
+  disease_cor = dat_list_disease_only$IHM_gene_score$r,
+  disease_cor_partial_age = dat_list_disease_only_partial_age$IHM_gene_score$r,
+  healthy_pval = dat_list_healthy_only$IHM_gene_score$p,
+  healthy_pval_partial_age = dat_list_healthy_only_partial_age$IHM_gene_score$p,
+  all_pval_partial_age = dat_list_all_partial_age$IHM_gene_score$p,
+  disease_pval = dat_list_disease_only$IHM_gene_score$p,
+  disease_pval_partial_age = dat_list_disease_only_partial_age$IHM_gene_score$p,
+  feature = rownames(soma_eset),
+  feat2 = featureData(soma_eset)$Target
+) %>%
+mutate(healthy_rank = rank(-abs(healthy_cor)),
+  healthy_partial_rank = rank(-abs(healthy_cor_partial_age)),
+  all_rank = rank(-abs(all_cor)),
+  all_partial_rank = rank(-abs(all_cor_partial_age)),
+  disease_rank = rank(-abs(all_cor)),
+  disease_partial_rank = rank(-abs(disease_cor_partial_age)),
+)
+combined_dat$feat2 <- gsub("IP-10","IP10/\nCXCL10",combined_dat$feat2)
+
+set.seed(431234)
+pdf(file.path("plots","IHM.correlation.plots.pdf"), height = 5.5, width = 5.5)
+p <- ggplot(combined_dat, aes(x =healthy_cor, y = disease_cor)) +
+        geom_point(size=1) +
+        geom_label_repel(data = combined_dat %>% filter(healthy_rank < 20 | disease_rank < 20),
+        aes(label = feat2), color = "black", size = 2.5,force = 2,nudge_y = 0.01,max.overlaps = 15) +
+       theme_bw() + theme(aspect.ratio=1) +
+       xlab("Correlation in Healthy") +
+       ylab("Correlation in Disease")
+print(p)
+
+
+p <- ggplot(combined_dat, aes(y = healthy_cor, x = healthy_cor_partial_age)) +
+        geom_point(size=1) + 
+        geom_label_repel(data = combined_dat %>% filter(healthy_rank < 20 | healthy_partial_rank < 20),
+        aes(label = feat2), color = "black", size = 2.5,max.overlaps = 15,force = 2,nudge_y = 0.01) +
+       xlim(c(-.7, .7)) + 
+       ylim(c(-.7, .7)) + 
+       ylab("Correlation in Healthy") +
+       xlab("Partial Correlation in Healthy (after removing age)") +
+       theme(aspect.ratio=1) + theme_bw()
+print(p)
+
+p <- ggplot(combined_dat, aes(y = disease_cor, x = disease_cor_partial_age)) +
+        geom_point(size=1) +
+        geom_label_repel(data = combined_dat %>% filter(disease_rank < 20 | disease_partial_rank < 20 | feat2 =="IP10/\nCXCL10"),
+        aes(label = feat2), color = "black", size = 2.5,force=2,max.overlaps = 15) + theme(aspect.ratio=1) +
+       ylab("Correlation in Disease") + 
+       xlab("Partial Correlation in Disease (after removing age)") +
+       theme_bw()
+print(p)
+dev.off()
+```
+
+# Neurotrophin-3 vs. IHM transcriptional surrogate
+```{r neurotrophin}
+score_dat <- sample.subject.mean[,c("condition","IHM_gene_score")] %>% tibble::rownames_to_column("patient_id")
+soma_dat <- data.frame(patient_id = soma_eset$patient_id, `Neurotrophin-3` = soma_mat["Neurotrophin.3",soma_eset$patient_id], 
+                       condition = soma_eset$condition, check.names = FALSE)
+
+plot_dat <- inner_join(score_dat, soma_dat)
+
+plot_dat <- plot_dat %>% filter(condition == "Healthy")
+
+ggplot(plot_dat, aes(y = IHM_gene_score, x = `Neurotrophin-3`)) +
+        geom_point() +
+        #geom_smooth(method = "lm") +
+        stat_cor(method = "spearman",cor.coef.name = "rho") +
+        ylab("IHM Transcriptional Surrogate") +
+        theme_bw() + theme(aspect.ratio=1)
+
+#ggsave(filename = file.path("plots","IHM.transcriptional.v.neurotrophin.pdf"), height = 3, width = 3)
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```

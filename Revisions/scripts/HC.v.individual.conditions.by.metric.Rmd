@@ -1,0 +1,380 @@
+---
+title: "HC vs. condition classification performance"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Using different metrics to assess performance in distinguishing individual condition and HC
+
+Supplementary Figures 6 and 7
+```{r setup}
+set.seed(869)
+library(tidyverse)
+library(ggpubr)
+library(ggthemes)
+library(Biobase)
+library(BiocGenerics)
+library(pROC)
+source(file.path("scripts","utils.R"))
+
+# IHM transcriptomic
+ihm.sig <- readRDS(file.path("data","IHM","healthy_index_transcriptomic_signature_2021_04_19.rds"))
+
+# Peters et al.
+peters.data <- read.csv(file.path("data","external_signatures","Peters.Supp.Data.1.gene.age.association.csv"),stringsAsFactors = F)
+peters.sig.pos <- subset(peters.data,!is.na(META..P) & peters.data$META.Direction == "+")$NEW.Gene.ID
+peters.sig.neg <- subset(peters.data,!is.na(META..P) & peters.data$META.Direction == "-")$NEW.Gene.ID
+peters.sig <- c(peters.sig.neg,peters.sig.pos)
+
+# IMM-Age
+imm.age.data <- read.csv(file.path("data","external_signatures","IMM_AGE.transcriptional.signature.txt"),sep = "\t")
+imm.age.sig.pos <- subset(imm.age.data,direction.along.IMM.AGE.axis == 1)$gene.symbol
+imm.age.sig.neg <- subset(imm.age.data,direction.along.IMM.AGE.axis == -1)$gene.symbol
+imm.age.sig <- c(imm.age.sig.neg,imm.age.sig.pos)
+
+# IHM proteomics 
+ihm.soma.sig <- read.csv(file.path("data","IHM","IHM.protein.signature.txt"),sep = "\t",strip.white = T,stringsAsFactors = F)
+
+# iAge
+iAge.data <- read.csv(file.path("data","external_signatures","iAge.top15.contributors.csv"))
+
+# Luigi's signature
+tanaka.age.signatures <- read.csv(file.path("data","external_signatures","tanaka.somalogic.age.signatures.csv"))
+
+# monogenic CBC data
+load(file.path("data","Pan_Monogenic","monogenic.de-identified.metadata.RData"),verbose = T)
+
+# monogenic flow
+flow_eset <- readRDS(file.path("data","Pan_Monogenic","flow_training_eset_subject_level.RDS"))
+
+# monogenic proteomics 
+soma_eset <- readRDS(file.path("data","Pan_Monogenic","analysis_ready_subject_level_training_somalogic.rds"))
+
+# monogenic transcriptomic
+array_eset <- readRDS(file.path("data","Pan_Monogenic","eset_batch_training.rds"))
+
+# IHM scores
+ihm.scores <- read.csv(file.path("data","IHM","ihm.scores.txt"),sep = "\t",stringsAsFactors = F)
+ihm.scores <- merge(ihm.scores,pData(soma_eset)[,-2],by="patient_id",all=T)
+```
+
+### Calculate transcriptomic signature scores
+```{r score,out.width="900px"}
+expr <- assayData(array_eset)$exprs
+
+IHM_gene_score <- calculate_signature_score(expr,ihm.sig$positive,ihm.sig$negative)
+
+IHM_gene_score <- calculate_signature_score(expr,ihm.sig$positive,ihm.sig$negative)
+Peters_score <- calculate_signature_score(expr,peters.sig.pos,peters.sig.neg)
+IMMAGE_score <- calculate_signature_score(expr,imm.age.sig.pos,imm.age.sig.neg)
+
+samples <- cbind(pData(array_eset),IHM_gene_score,IMMAGE_score,Peters_score)
+samples.subject.mean <- as.data.frame(samples %>% group_by(patient_id,condition,race,gender) %>% 
+  summarise_at(.vars=c("IHM_gene_score","IMMAGE_score","Peters_score","patient_age_at_time_of_blood_draw"),.funs = mean))
+rownames(samples.subject.mean) <- samples.subject.mean$patient_id
+```
+
+### Calculate proteomics signature scores
+```{r score.proteins,out.width="900px"}
+protein.levels <- assayData(soma_eset)$exprs
+protein.info <- featureData(soma_eset)@data
+
+IHM_protein_score <- calculate_signature_score(protein.levels,
+                                            make.names(subset(ihm.soma.sig,direction == "positive")$feature),
+                                            make.names(subset(ihm.soma.sig,direction == "negative")$feature))
+
+# iAge top 15 proteins
+sig.neg <- tolower(protein.info$EntrezGeneSymbol) %in% tolower(iAge.data$Negative) | tolower(protein.info$Target) %in% tolower(iAge.data$Negative) 
+sig.pos <- tolower(protein.info$Target) %in% tolower(iAge.data$Positive) | tolower(protein.info$Target) %in% tolower(iAge.data$Positive)
+iAge_protein_score <- get_score(t(cbind(-t(protein.levels)[,sig.neg],t(protein.levels)[,sig.pos])))
+
+# Tanaka signatures
+tanaka.proteins <- cbind(protein.info,tanaka.age.signatures[match(protein.info$SomaId,tanaka.age.signatures$SOMAID),])
+tanaka.proteins <- subset(tanaka.proteins,!is.na(X76.protein.predictor))
+nrow(tanaka.proteins)
+Tanaka_protein_score <- colSums(sweep(protein.levels[rownames(tanaka.proteins),],1,tanaka.proteins$X76.protein.predictor,"*")) +
+  tanaka.age.signatures$X76.protein.predictor[1] # intercept
+
+samples.subject.mean <- cbind(samples.subject.mean,
+                              IHM_protein_score=IHM_protein_score[rownames(samples.subject.mean)],
+                              iAge_top_protein_score=iAge_protein_score[rownames(samples.subject.mean)],
+                              tanaka_protein_score=Tanaka_protein_score[rownames(samples.subject.mean)])
+```
+
+### Lymphocytes/NLR
+```{r lymphocytes}
+lymphocyte.counts <- as.data.frame(monogenic.tbnk %>% group_by(patient_id) %>% 
+                                     summarise_at(.vars=grep("lymphocytes|neutrophil|nk",
+                                                        grep("_uom",colnames(monogenic.tbnk),invert = T,value=T),value=T),
+                                                  .funs = mean,na.rm=T))
+lymphocyte.counts$patient_id <- paste0("P",lymphocyte.counts$patient_id)
+lymphocyte.counts <- merge(ihm.scores,lymphocyte.counts,by="patient_id",all=T)
+lymphocyte.counts$NLR <- lymphocyte.counts$neutrophil_abs/lymphocyte.counts$lymphocytes_abs
+```
+
+### CD4/CD8 Naive T cell counts
+```{r t.cells}
+flow.pop.data <- assayData(flow_eset)$exprs
+ihm.scores.w.flow <- merge(ihm.scores,t(flow.pop.data),by.x="patient_id",by.y="row.names")
+ihm.scores.w.flow <- subset(ihm.scores.w.flow,!is.na(IHM.score))
+
+# T4.populations.Naive.Tc = 100*T4.counts.Event.Counts.of.Tc.Naive..CD8.Tc./T4.counts.Event.Counts.of.CD8.Tc
+lymphocyte.counts$naive.CD8.T.cells <- ihm.scores.w.flow[match(lymphocyte.counts$patient_id,ihm.scores.w.flow$patient_id),"T4.populations.Naive.Tc"]
+
+# CD8 memory cells
+lymphocyte.counts$mem.CD8.T.cells <- ihm.scores.w.flow[match(lymphocyte.counts$patient_id,ihm.scores.w.flow$patient_id),"T4.populations.Total.Memory.Tc"]
+
+lymphocyte.counts$CD8.mem.naive.ratio <- lymphocyte.counts$mem.CD8.T.cells/lymphocyte.counts$naive.CD8.T.cells
+
+# CD4 Naive: T4.populations.Th.Naive.in.NotTreg..NotTfhCD4. 
+lymphocyte.counts$naive.CD4.T.cells <- ihm.scores.w.flow[match(lymphocyte.counts$patient_id,ihm.scores.w.flow$patient_id),
+                                                         "T4.populations.Th.Naive.in.NotTreg..NotTfhCD4."]
+
+# hc only IHM regressing out naive CD8 freq.
+lm.res <- lm(IHM.score ~ naive.CD8.T.cells,lymphocyte.counts)
+lymphocyte.counts$IHM.score.resid.adjusted.for.freq <- resid(lm.res)[rownames(lymphocyte.counts)]
+
+ggplot(subset(lymphocyte.counts,condition == "Healthy"),aes(Age,IHM.score.resid.adjusted.for.freq)) + 
+  geom_point(alpha=0.75,size=2) + geom_smooth(se=F,method="lm") +
+  stat_cor(method="pearson") + 
+  theme_bw() + xlab("Age") + ylab("IHM with naive CD8+ T cell\nfrequency regressed out") + ggtitle("Healthy subjects")
+ggsave(file.path("plots","age.correlation.w.IHM.naive.CD8.regressed.out.HC.only.pdf"),width=3.25,height=3)
+
+# hc only IHM regressing out naive CD4 freq.
+lm.res <- lm(IHM.score ~ naive.CD4.T.cells,lymphocyte.counts)
+lymphocyte.counts$IHM.score.resid.adjusted.for.freq <- resid(lm.res)[rownames(lymphocyte.counts)]
+
+ggplot(subset(lymphocyte.counts,condition == "Healthy"),aes(Age,IHM.score.resid.adjusted.for.freq)) + 
+  geom_point(alpha=0.75,size=2) + geom_smooth(se=F,method="lm") +
+  stat_cor(method="pearson") + 
+  theme_bw() + xlab("Age") + ylab("IHM with naive CD4+ T cell\nfrequency regressed out") + ggtitle("Healthy subjects")
+ggsave(file.path("plots","age.correlation.w.IHM.naive.CD4.regressed.out.HC.only.pdf"),width=3.25,height=3)
+```
+
+### CRP and Neurotrophin-3
+From somalogic
+```{r soma}
+lymphocyte.counts.w.proteins <- merge(lymphocyte.counts,t(protein.levels[c("CRP","IL.6","MIG","Neurotrophin.3","MIC.1"),]),
+                                      all=T,by.x="patient_id",by.y="row.names")
+```
+
+### Condition vs. HC
+compare the performance of IHM with other metrics
+```{r auc,out.width="1200px"}
+# merge all metrics
+subject.measurements <- merge(lymphocyte.counts.w.proteins,samples.subject.mean,by="patient_id",suf=c("",".dup"),all=T)
+rownames(subject.measurements) <- subject.measurements$patient_id
+table(is.na(subject.measurements$IHM.score))
+# remove subjects without original IHM scores
+subject.measurements <- subset(subject.measurements,!is.na(IHM.score))
+
+score.type.list <- list(IHM=c("IHM.score","IHM_gene_score","IHM_protein_score"),
+                        ageing.signature=c("IMMAGE_score","Peters_score","iAge_top_protein_score","tanaka_protein_score"),
+                        cell.frequency=c("lymphocytes_percent","NLR","naive.CD4.T.cells","naive.CD8.T.cells","nk_cells_count"),
+                        serum.protein=c("CRP","Neurotrophin.3","IL.6","MIG","MIC.1"))
+#score.type.list <- list("IHM.score","naive.CD4.T.cells","naive.CD8.T.cells","CRP","Neurotrophin.3")
+score.type <- unlist(score.type.list)
+score.type.color <- c(ggsci::pal_simpsons()(length(score.type)-1),"grey30")
+
+#pdf(file.path("plots","healthy.v.disease.auc.pdf"),width=4,height=4)
+condition.v.hc.res <- data.frame()
+index <- 0
+# All
+for (i in score.type) {
+  res <- roc(controls=subset(subject.measurements,condition == "Healthy")[,i],
+             cases=subset(subject.measurements,!(condition %in% c("Healthy")))[,i])
+  if (i == "IHM.score") {
+    res.orig <- res
+    p.val <- NA
+  } else {
+    test.res <- roc.test(res,res.orig,method="bootstrap")
+    p.val <- test.res$p.value
+  }
+  plot(res,print.auc=T,add=ifelse(index == 0,F,T),print.auc.y = 0.6 - index*0.05,print.auc.x = 0.2,
+       col=score.type.color[index+1],print.auc.col=score.type.color[index+1],print.auc.cex=0.75)
+  index <- index + 1
+  condition.v.hc.res <- rbind(condition.v.hc.res,data.frame(metric=i,condition="All",
+                                                            auc=res$auc,p.val=p.val,
+                                                            num.cases=length(res$cases),num.controls=length(res$controls)))
+}
+legend("bottomleft",legend=score.type,col=score.type.color,lwd=4,cex = 0.5)
+#dev.off()
+
+# Individual conditions
+for (cond in setdiff(unique(subject.measurements$condition),c("Healthy","IL-12R","CARD14 DN"))) {
+  cat(cond,"\n")
+  for (i in score.type) {
+    if (sum(!is.na(subset(subject.measurements,condition == cond)[,i]) > 0)) {
+      res <- roc(controls=subset(subject.measurements,condition == "Healthy")[,i],cases=subset(subject.measurements,condition == cond)[,i])
+      if (i == "IHM.score") {
+        res.orig <- res
+        p.val <- NA
+      } else {
+        test.res <- roc.test(res,res.orig,method="bootstrap")
+        p.val <- test.res$p.value
+      }
+      condition.v.hc.res <- rbind(condition.v.hc.res,data.frame(metric=i,condition=cond,
+                                                              auc=res$auc,p.val=p.val,
+                                                              num.cases=length(res$cases),num.controls=length(res$controls)))
+    }
+  }
+}
+condition.v.hc.res <- as.data.frame(condition.v.hc.res %>% group_by(condition) %>% mutate(max.num.cases=max(num.cases)))
+condition.v.hc.res$condition.label <- paste0(condition.v.hc.res$condition," (n=",condition.v.hc.res$max.num.cases,")")
+
+# boxplot
+score.type.map = rep(seq_along(score.type.list), times = sapply(score.type.list, length))
+names(score.type.map) <- unlist(score.type.list)
+condition.v.hc.res$metric <- factor(condition.v.hc.res$metric,levels = score.type)
+condition.v.hc.res$metric.type <- names(score.type.list)[score.type.map[condition.v.hc.res$metric]]
+
+custom.colors=setNames(tableau_color_pal()(4),c("ageing.signature","IHM","serum.protein","cell.frequency"))
+ggplot(subset(condition.v.hc.res,condition != "All" & num.cases >= 3),aes(metric,auc)) + 
+  geom_hline(yintercept = 0.5,linetype="dashed",color="red") +
+  geom_boxplot(aes(fill=metric.type),outlier.shape=NA) + geom_point(alpha=0.65,size=1) + 
+  ggrepel::geom_text_repel(aes(label=condition),
+                           data = as.data.frame(subset(condition.v.hc.res,condition != "All" & num.cases >= 3) %>% group_by(metric) %>% slice_max(auc,n=3)),
+                           min.segment.length = 0,nudge_x = .2,size=2) +
+  ggrepel::geom_text_repel(aes(label=condition),
+                           data = as.data.frame(subset(condition.v.hc.res,condition != "All" & num.cases >= 3) %>% group_by(metric) %>% slice_min(auc,n=3)),
+                           min.segment.length = 0,nudge_x = .2,size=2) +
+  stat_compare_means(ref.group = "IHM.score",label = "p.format",method="t.test",size=2) + 
+  geom_point(data=subset(condition.v.hc.res,condition == "All"),pch=21,fill="white",alpha=0.75) +
+  theme_bw() + theme(axis.text.x=element_text(angle=30,hjust=1),legend.position = "bottom") + 
+  scale_fill_manual(values=custom.colors,na.value="grey") + ylim(NA,1.05) #+
+  #ggtitle("Classification Performance","include only conditions with more than two subjects; non-paired t-test p-values shown")
+ggsave(file.path("plots","healthy.v.individual.disease.auc.boxplot.pdf"),width=12,height=6)
+```
+
+### Condition vs. HC regressing out age
+compare the performance of IHM with other metrics
+```{r auc.wo.age}
+lm.res <- sapply(score.type,function(x){resid(lm(as.matrix(subject.measurements[,x]) ~ patient_age_at_time_of_blood_draw,subject.measurements))})
+lm.res.age <- t(as.data.frame(do.call(bind_rows,lm.res)))
+colnames(lm.res.age) <- score.type
+subject.measurements.wo.age <- merge(subject.measurements,lm.res.age,
+                                     by.x="patient_id",by.y="row.names",suf=c("",".age.rm"))
+
+#pdf(file.path("plots","healthy.v.disease.auc.wo.age.pdf"),width=4,height=4)
+#plot.new()
+condition.v.hc.wo.age.res <- data.frame()
+index <- 0
+# All
+for (i in paste0(score.type,".age.rm")) {
+  res <- roc(controls=subset(subject.measurements.wo.age,condition == "Healthy")[,i],
+             cases=subset(subject.measurements.wo.age,condition != "Healthy")[,i])
+  if (i == "IHM.score.age.rm") {
+    res.orig <- res
+    p.val <- NA
+  } else {
+    test.res <- roc.test(res,res.orig,method="bootstrap")
+    p.val <- test.res$p.value
+  }
+  plot(res,print.auc=T,add=ifelse(index == 0,F,T),print.auc.y = 0.6 - index*0.05,print.auc.x = 0.2,
+       col=score.type.color[index+1],print.auc.col=score.type.color[index+1],print.auc.cex=0.75)
+  index <- index + 1
+  condition.v.hc.wo.age.res <- rbind(condition.v.hc.wo.age.res,data.frame(metric=i,condition="All",
+                                                            auc=res$auc,p.val=p.val,
+                                                            num.cases=length(res$cases),num.controls=length(res$controls)))
+}
+legend("bottomleft",legend=score.type,col=score.type.color,lwd=4,cex = 0.5)
+#dev.off()
+
+condition.v.hc.wo.age.res <- as.data.frame(condition.v.hc.wo.age.res %>% group_by(condition) %>% mutate(max.num.cases=max(num.cases)))
+condition.v.hc.wo.age.res$condition.label <- paste0(condition.v.hc.wo.age.res$condition," (n=",condition.v.hc.wo.age.res$max.num.cases,")")
+condition.v.hc.wo.age.res$metric <- gsub(".age.rm","",condition.v.hc.wo.age.res$metric)
+```
+
+### Condition vs. HC regressing out inflammation
+compare the performance of IHM with other metrics
+```{r auc.wo.crp}
+lm.res <- sapply(score.type,function(x){resid(lm(as.matrix(subject.measurements[,x]) ~ CRP,subject.measurements))})
+lm.res.crp <- t(as.data.frame(do.call(bind_rows,lm.res)))
+colnames(lm.res.crp) <- score.type
+subject.measurements.wo.crp <- merge(subject.measurements,lm.res.crp,
+                                     by.x="patient_id",by.y="row.names",suf=c("",".crp.rm"))
+
+#pdf(file.path("plots","healthy.v.disease.auc.wo.crp.pdf"),width=4,height=4)
+condition.v.hc.wo.crp.res <- data.frame()
+index <- 0
+# All
+for (i in paste0(score.type,".crp.rm")) {
+  res <- roc(controls=subset(subject.measurements.wo.crp,condition == "Healthy")[,i],
+             cases=subset(subject.measurements.wo.crp,condition != "Healthy")[,i])
+  if (i == "IHM.score.crp.rm") {
+    res.orig <- res
+    p.val <- NA
+  } else {
+    test.res <- roc.test(res,res.orig,method="bootstrap")
+    p.val <- test.res$p.value
+  }
+  plot(res,print.auc=T,add=ifelse(index == 0,F,T),print.auc.y = 0.6 - index*0.05,print.auc.x = 0.2,
+       col=score.type.color[index+1],print.auc.col=score.type.color[index+1],print.auc.cex=0.75)
+  index <- index + 1
+  condition.v.hc.wo.crp.res <- rbind(condition.v.hc.wo.crp.res,data.frame(metric=i,condition="All",
+                                                            auc=res$auc,p.val=p.val,
+                                                            num.cases=length(res$cases),num.controls=length(res$controls)))
+}
+legend("bottomleft",legend=score.type,col=score.type.color,lwd=4,cex = 0.5)
+#dev.off()
+
+condition.v.hc.wo.crp.res <- as.data.frame(condition.v.hc.wo.crp.res %>% group_by(condition) %>% mutate(max.num.cases=max(num.cases)))
+condition.v.hc.wo.crp.res$condition.label <- paste0(condition.v.hc.wo.crp.res$condition," (n=",condition.v.hc.wo.crp.res$max.num.cases,")")
+condition.v.hc.wo.crp.res$metric <- gsub(".crp.rm","",condition.v.hc.wo.crp.res$metric)
+```
+
+### Merged
+```{r merged}
+lm.res <- sapply(score.type,function(x){resid(lm(as.matrix(subject.measurements[,x]) ~ patient_age_at_time_of_blood_draw + CRP,subject.measurements))})
+lm.res.both <- t(as.data.frame(do.call(bind_rows,lm.res)))
+colnames(lm.res.both) <- score.type
+lm.res.merged <- data.frame(age=lm.res.age,crp=lm.res.crp,both=lm.res.both)
+subject.measurements.regressed <- merge(subject.measurements,lm.res.merged,
+                                     by.x="patient_id",by.y="row.names")
+
+# All
+condition.v.hc.combined.res <- data.frame()
+for (i in paste0(score.type)) {
+  for (j in c("","age.","crp.","both.")) {
+    metric <- paste0(j,i)
+    if (sum(!is.na(subset(subject.measurements.regressed,condition == "Healthy")[,metric])) > 1) {
+      res <- roc(controls=subset(subject.measurements.regressed,condition == "Healthy")[,metric],
+                 cases=subset(subject.measurements.regressed,condition != "Healthy")[,metric])
+      if (j == "") {
+        res.orig <- res
+        p.val <- NA
+      } else {
+        test.res <- roc.test(res,res.orig,method="bootstrap")
+        p.val <- test.res$p.value
+      }
+      condition.v.hc.combined.res <- rbind(condition.v.hc.combined.res,data.frame(metric=i,variable=j,condition="All",
+                                                                                  auc=res$auc,p.val=p.val,
+                                                                                  num.cases=length(res$cases),num.controls=length(res$controls)))
+    }
+  }
+}
+condition.v.hc.combined.res <- as.data.frame(condition.v.hc.combined.res %>% group_by(condition) %>% mutate(max.num.cases=max(num.cases)))
+condition.v.hc.combined.res$condition.label <- paste0(condition.v.hc.combined.res$condition," (n=",condition.v.hc.combined.res$max.num.cases,")")
+condition.v.hc.combined.res$variable <- ifelse(condition.v.hc.combined.res$variable == "","No correction",gsub(".","",condition.v.hc.combined.res$variable,fixed=T))
+condition.v.hc.combined.res$variable <- factor(condition.v.hc.combined.res$variable,levels = c("No correction","age","crp","both"))
+
+# comparing IHM scores with and without age and CRP correction
+ggplot(condition.v.hc.combined.res[grep("IHM",condition.v.hc.combined.res$metric),],aes(variable,auc)) + 
+  geom_hline(yintercept = 0.5,linetype="dashed",color="red") + ylim(NA,1) +
+  geom_bar(stat="identity",fill="#F28E2B") + geom_text(aes(x=variable,y=0.95,label=paste0("p=",round(p.val,3))),size=3) +
+  facet_grid(~metric) + theme_bw() + xlab("Correction") + ylab("AUC")
+ggsave(file.path("plots","healthy.v.individual.disease.IHM.auc.w.correction.pdf"),width=9,height=3)
+
+```
+
+Session Info
+```{r session}
+sessionInfo()
+```

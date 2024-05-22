@@ -1,0 +1,31 @@
+{
+    "__default__" :
+    {
+        "mem_free" : "8G",
+        "h_vmem" : "10G",
+        "parallel_opts" : ""
+
+    },
+    "WGCNA_array" :
+    {
+        "mem_free" : "20G",
+        "h_vmem" : "24G"
+    },
+    "JIVE_enrich_run" :
+    {
+        "mem_free" : "4G",
+        "h_vmem" : "4G",
+        "parallel_opts" : "-pe threaded 4"
+    },
+    "variance_partitions" :
+    {
+        "mem_free" : "3G",
+        "h_vmem" : "3G",
+        "parallel_opts" : "-pe threaded 8"
+    },
+    "clean_jamboree_data" :
+    {
+        "mem_free" : "20G",
+        "h_vmem" : "24G"
+    }
+}

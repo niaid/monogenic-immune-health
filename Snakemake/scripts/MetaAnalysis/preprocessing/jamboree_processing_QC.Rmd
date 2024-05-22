@@ -1,0 +1,218 @@
+---
+title: "Jamboree QC"
+author: "Dylan Hirsch"
+date: "4/22/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+## Clear workspace
+rm(list = ls())
+
+## Read in data
+cgps = readRDS('../../../../Reference/jamboree_cgps.RDS')
+series = readRDS('../../../../Reference/jamboree_series_matrix/series_matrix_list.rds')
+
+## Remove SLE studies due to their low gene coverage
+cgps = cgps[names(cgps) != 'SLE']
+
+## Remove poor quality studies
+studies.to.remove = list(DM1 = c(2),
+                         MS = c(NULL),
+                         RA = c(5),
+                         sarcoid = c(NULL))
+
+studies.to.remove = sapply(studies.to.remove, function(study) {paste0('CGP_',study)})
+
+for(disease in names(studies.to.remove)) {
+  studies = studies.to.remove[[disease]]
+  cgps.subset = cgps[[disease]]
+  for(study in studies) {
+    cgps.subset = cgps.subset[setdiff(names(cgps.subset), studies)]
+  }
+  cgps[[disease]] = cgps.subset
+}
+
+## Collapse cgps by study ID
+
+cgps.new = cgps
+
+for(disease in names(cgps)) {
+  cgps.subset = cgps[[disease]]
+  cgps.subset.new = list()
+  for(study in names(cgps.subset)) {
+    
+    cgp = cgps.subset[[study]]
+    study.number = cgp$study.info$study
+    study.platform = cgp$study.info$platform
+    study.id = paste0(study.number,'.',study.platform)
+    
+    if(! study.id %in% names(cgps.subset.new)) {
+      cgps.subset.new[[length(cgps.subset.new) + 1]] = list(cases = NULL, controls = NULL)
+      names(cgps.subset.new)[[length(cgps.subset.new)]] = study.id
+    }
+    
+    cases = cgps.subset.new[[study.id]]$cases
+    cgps.subset.new[[study.id]]$cases = unique(c(cases, cgp$case.names))
+    controls = cgps.subset.new[[study.id]]$controls
+    cgps.subset.new[[study.id]]$controls = unique(c(controls, cgp$control.names))
+  }
+  
+  cgps.new[[disease]] =  cgps.subset.new
+}
+
+cgps = cgps.new
+
+# Here we edit the studies one at a time to deal with problems that arise
+
+# GSE21942
+## Remove technical replicate case samples
+gsms.to.remove = c('GSM545843', 'GSM545845')
+
+## We check to make sure we are removing the correct gsms from the series matrix file
+check.mat = series$GSE21942
+check.mat = check.mat[check.mat$geo_accession %in% unlist(cgps$MS$GSE21942.GPL570),]
+titles = levels(check.mat$title)[as.numeric(check.mat$title)]
+titles = sapply(strsplit(titles,','), function(x) {x[[1]]})
+check.mat$name = titles
+check.mat = data.frame(gsms = rownames(check.mat), names = check.mat$name, stringsAsFactors = FALSE)                              
+check.mat = check.mat[rev(1:nrow(check.mat)), ]
+check.gsms = check.mat[duplicated(check.mat$names), 'gsms']
+stopifnot(all(sort(gsms.to.remove) == sort(check.gsms)))
+
+## We remove these samples
+cgps$MS$GSE21942.GPL570$cases = setdiff(cgps$MS$GSE21942.GPL570$cases, gsms.to.remove)
+
+# GSE30210
+## We take the last sample from each patient in this longitudinal study
+case.gsms.to.keep = c('GSM747681', 'GSM747692', 'GSM747707', 'GSM747725', 'GSM747740', 'GSM747758', 'GSM747766',
+                      'GSM747785', 'GSM747800', 'GSM747812', 'GSM747828', 'GSM747841', 'GSM747849', 'GSM747863',
+                      'GSM747876', 'GSM747890', 'GSM747903', 'GSM747918')
+control.gsms.to.keep = c('GSM747686', 'GSM747695', 'GSM747714', 'GSM747732', 'GSM747747', 'GSM747762',
+                         'GSM747773', 'GSM747793', 'GSM747806', 'GSM747820', 'GSM747835', 'GSM747844',
+                         'GSM747854', 'GSM747868', 'GSM747881', 'GSM747899', 'GSM747909', 'GSM747921')
+
+## We check to make sure we are removing the correct gsms from the series matrix file
+check.mat = series$GSE30210
+check.mat = check.mat[check.mat$geo_accession %in% unlist(cgps$DM1$GSE30210.GPL6947),]
+titles = levels(check.mat$title)[as.numeric(check.mat$title)]
+titles = sapply(strsplit(titles,'_'), function(x) {x[[1]]})
+check.mat$name = titles
+check.mat = check.mat[!grepl('B',check.mat$title),]
+check.mat = data.frame(gsms = rownames(check.mat), names = check.mat$name, stringsAsFactors = FALSE)                              
+check.mat = check.mat[rev(1:nrow(check.mat)), ]
+check.gsms = check.mat[!duplicated(check.mat$names), 'gsms']
+stopifnot(all(sort(c(control.gsms.to.keep, case.gsms.to.keep)) == sort(check.gsms)))
+
+                              
+## We remove these samples
+cgps$DM1$GSE30210.GPL6947$cases = case.gsms.to.keep
+cgps$DM1$GSE30210.GPL6947$controls = control.gsms.to.keep
+
+# GSE8650
+## We remove biological/technical replicates (the last samples is kept for each patient)
+case.gsms.to.remove = c('GSM214382', 'GSM214388', 'GSM214390', 'GSM214394', 'GSM214400', 'GSM214406', 'GSM214414',
+                        'GSM214416', 'GSM214426', 'GSM214428', 'GSM214442', 'GSM214462', 'GSM214474', 'GSM214484')
+
+## We check to make sure we are removing the correct gsms from the series matrix file
+check.mat = series$GSE8650
+check.mat = check.mat[check.mat$geo_accession %in% unlist(cgps$RA$GSE8650.GPL96),]
+titles = levels(check.mat$title)[as.numeric(check.mat$title)]
+titles = sapply(strsplit(titles,'_'), function(x) {x[[3]]})
+titles = sapply(strsplit(titles,' '), function(x) {x[[1]]})
+titles = tolower(titles)
+check.mat$name = titles
+check.mat = data.frame(gsms = rownames(check.mat), names = check.mat$name, stringsAsFactors = FALSE)                              
+check.mat = check.mat[rev(1:nrow(check.mat)), ]
+check.gsms = check.mat[duplicated(check.mat$names), 'gsms']
+stopifnot(all(sort(case.gsms.to.remove) %in% sort(check.gsms)))
+
+## We remove these samples
+cgps$RA$GSE8650.GPL96$cases = setdiff(cgps$RA$GSE8650.GPL96$cases, case.gsms.to.remove)
+
+## We remove 2 samples that were found to have incorrect diagnosis
+case.gsms.to.remove = c('GSM214490', 'GSM214492')
+cgps$RA$GSE8650.GPL96$cases = setdiff(cgps$RA$GSE8650.GPL96$cases, case.gsms.to.remove)
+
+# GSE15645
+## Remove patients with clinical remission
+gsms.to.remove = c('GSM391602', 'GSM391603', 'GSM391604', 'GSM391605', 'GSM391606',
+                        'GSM391607', 'GSM391608', 'GSM391609', 'GSM391610', 'GSM391611',
+                        'GSM391612', 'GSM391613', 'GSM391614', 'GSM391615', 'GSM391616')
+
+## Check to make sure we are removing the correct patients
+check.mat = series$GSE15645
+titles = levels(check.mat$title)[as.numeric(check.mat$title)]
+check.mat = check.mat[!grepl('CR', titles), ]
+
+stopifnot(!any(gsms.to.remove %in% check.mat$geo_accession))
+
+## We remove these patients
+cgps$RA$GSE15645.GPL570 = setdiff(cgps$RA$GSE15645.GPL570$cases, gsms.to.remove)
+
+# GSE18781
+## Case and control GSMs were flipped here (in OMiCC)
+controls = cgps$sarcoid$GSE18781.GPL570$cases
+cases = cgps$sarcoid$GSE18781.GPL570$controls
+
+cgps$sarcoid$GSE18781.GPL570$cases = cases
+cgps$sarcoid$GSE18781.GPL570$controls = controls
+
+# GSE42834
+## Remove patients with non-active sarcoid
+case.gsms.to.remove = c('GSM1050754', 'GSM1050759', 'GSM1050762', 'GSM1050763', 'GSM1050766', 'GSM1050774',
+                        'GSM1050780', 'GSM1050783', 'GSM1050789', 'GSM1050793', 'GSM1050797', 'GSM1050816',
+                        'GSM1050843', 'GSM1050864', 'GSM1050931', 'GSM1050933', 'GSM1050949', 'GSM1050969',
+                        'GSM1050973', 'GSM1050975', 'GSM1050976', 'GSM1050977')
+
+## Check to make sure we are removing the correct patients
+check.mat = series$GSE42834
+check.mat = check.mat[check.mat$geo_accession %in% unlist(cgps$sarcoid$GSE42834.GPL10558), ]
+check.gsms = check.mat[check.mat$characteristics_ch1.2 == 'disease state: Non-active sarcoidosis', 'geo_accession']
+stopifnot(sort(check.gsms) == sort(case.gsms.to.remove))
+
+## Remove these patients
+cgps$sarcoid$GSE42834.GPL10558$cases = setdiff(cgps$sarcoid$GSE42834.GPL10558$cases, case.gsms.to.remove)
+```
+
+
+```{r}
+cgps.ra = cgps$RA
+n = length(cgps.ra)
+for(i in 1:(n-1)) {
+  for(j in (i+1):n) {
+    intersects = intersect(unlist(cgps.ra[[i]]), unlist(cgps.ra[[j]]))
+    if(length(intersects) > 0) {
+      print(paste(names(cgps.ra)[[i]], names(cgps.ra)[[j]]))
+      print(length(intersects))
+      if(all(unlist(cgps.ra[[i]]) %in% unlist(cgps.ra[[j]]))) {
+        print('<')
+      } else if(all(unlist(cgps.ra[[j]]) %in% unlist(cgps.ra[[i]]))) {
+        print('>')
+      }
+    }
+  }
+}
+
+all(unlist(cgps.ra$GSE13849.GPL570) %in% unlist(cgps.ra$GSE13501.GPL570))
+```
+
+```{r}
+gsms = unlist(cgps.ra$GSE13501.GPL570)
+others = c(unlist(cgps.ra$GSE26554.GPL570), unlist(cgps.ra$GSE13849.GPL570), unlist(cgps.ra$GSE20307.GPL570))
+mean(gsms %in% others)
+mean(others %in% gsms)
+```
+
+```{r}
+
+```
+
+
+```{r}
+```
+

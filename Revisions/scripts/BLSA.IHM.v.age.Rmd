@@ -1,0 +1,70 @@
+---
+title: "IHM age association for BLSA cohort"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Figure 4b, Extended Data Figures 5c, 5e
+```{r setup}
+library(tidyverse)
+library(ggpubr)
+library(SummarizedExperiment)
+source(file.path("scripts","utils.R"))
+
+# IHM protein surrogate
+ihm.soma.sig <- read.csv(file.path("data","IHM","IHM.protein.signature.txt"),sep = "\t",strip.white = T,stringsAsFactors = F)
+ihm.soma.sig.pos <- make.names(subset(ihm.soma.sig,direction == "positive")$SomaId)
+ihm.soma.sig.neg <- make.names(subset(ihm.soma.sig,direction == "negative")$SomaId)
+
+# Baltimore cohort somalogic data
+blsa.eset <- readRDS(file.path("data","BLSA","BLSA_aging_eset.RDS"))
+blsa.eset.cohort <- pData(blsa.eset)
+```
+
+### Calculate IHM scores from current 1.3k samples
+```{r ihm}
+eset <- blsa.eset[,blsa.eset$SampleType == "Sample"]
+blsa.eset.cohort <- subset(blsa.eset.cohort,SampleType == "Sample")
+
+#blsa.eset.cohort$ihm <- util.get_signature_score(exprs(eset),list(positive=ihm.soma.sig.pos,negative=ihm.soma.sig.neg))[rownames(blsa.eset.cohort)]
+blsa.eset.cohort$ihm <- calculate_signature_score(exprs(eset),ihm.soma.sig.pos,ihm.soma.sig.neg)[rownames(blsa.eset.cohort)]
+CRP <- t(exprs(eset))[,"SL000051"] # CRP
+blsa.eset.cohort[names(CRP),"CRP"] <- CRP
+IL6 <- t(exprs(eset))[,"SL000087"] # IL-6
+blsa.eset.cohort[names(IL6),"IL6"] <- IL6
+```
+
+### Association with clinical phenotype
+```{r asso}
+tmp <- subset(blsa.eset.cohort,!is.na(ihm))
+# regress out CRP
+tmp$ihm.crp.rm <- resid(lm(ihm ~ CRP,tmp))
+# Age
+print(ggplot(tmp,aes_string("Age","ihm")) + 
+          geom_point(alpha=0.75,size=1) + geom_smooth(method="lm") +
+          stat_cor() +
+          theme_bw() + ggtitle("BLSA: 1.3k somalogic cohort"))
+#ggsave(file.path("plots","ihm.vs.age.pdf"),width=2.5,height = 2.5)
+print(ggplot(tmp,aes_string("Age","ihm.crp.rm")) + 
+          geom_point(alpha=0.75,size=1) + stat_cor() + theme(aspect.ratio = 1) + 
+          theme_bw() + ggtitle("BLSA: 1.3k somalogic cohort") + ylab("Immune Health Metric Proteomic\nSurrogate w/ CRP regressed out"))
+#ggsave(file.path("plots","ihm.crp.rm.vs.age.pdf"),width=2.75,height = 2.5)
+
+# correlation with IL-6
+print(ggplot(tmp,aes_string("IL6","ihm")) + 
+          geom_point(alpha=0.75,size=1) + stat_cor(method="spearman",cor.coef.name = "rho") + theme(aspect.ratio = 1) + 
+          theme_bw() + ggtitle("BLSA: 1.3k somalogic cohort") + ylab("IHM Protein Surrogate") + xlab("IL-6"))
+#ggsave(file.path("plots","IL6.v.ihm.pdf"),width=2.75,height = 2.5)
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```

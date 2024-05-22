@@ -1,0 +1,202 @@
+---
+title: "RA patients vs. HCs in the RA-MAP cohort"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Using the RA multiomics dataset from https://www.nature.com/articles/s41597-022-01264-y
+
+Using whole-blood microarray and somalogic data. Limit to subjects <= 60 years of age
+
+Extended Data Figures 7d-e
+```{r setup,message=F}
+set.seed(869)
+library(tidyverse)
+library(ggpubr)
+library(Biobase)
+library(BiocGenerics)
+library(pROC)
+source(file.path("scripts","utils.R"))
+
+# IHM transcriptomic
+ihm.sig <- readRDS(file.path("data","IHM","healthy_index_transcriptomic_signature_2021_04_19.rds"))
+
+# Peters et al.
+peters.data <- read.csv(file.path("data","external_signatures","Peters.Supp.Data.1.gene.age.association.csv"),stringsAsFactors = F)
+peters.sig.pos <- subset(peters.data,!is.na(META..P) & peters.data$META.Direction == "+")$NEW.Gene.ID
+peters.sig.neg <- subset(peters.data,!is.na(META..P) & peters.data$META.Direction == "-")$NEW.Gene.ID
+peters.sig <- c(peters.sig.neg,peters.sig.pos)
+
+# IMM-Age
+imm.age.data <- read.csv(file.path("data","external_signatures","IMM_AGE.transcriptional.signature.txt"),sep = "\t")
+imm.age.sig.pos <- subset(imm.age.data,direction.along.IMM.AGE.axis == 1)$gene.symbol
+imm.age.sig.neg <- subset(imm.age.data,direction.along.IMM.AGE.axis == -1)$gene.symbol
+imm.age.sig <- c(imm.age.sig.neg,imm.age.sig.pos)
+
+# IHM proteomics 
+ihm.soma.sig <- read.csv(file.path("data","IHM","IHM.protein.signature.txt"),sep = "\t",strip.white = T,stringsAsFactors = F)
+
+# iAge
+iAge.data <- read.csv(file.path("data","external_signatures","iAge.top15.contributors.csv"))
+
+# Luigi's signature
+tanaka.age.signatures <- read.csv(file.path("data","external_signatures","tanaka.somalogic.age.signatures.csv"))
+
+# RA-MAP microarray
+ramap.rna.eSet <- readRDS(file.path("data","RA_MAP","microarray_eSet.rds"))
+table(ramap.rna.eSet$CELL.TYPE)
+ra.expr <- assayData(ramap.rna.eSet)$exprs
+ra.clin <- phenoData(ramap.rna.eSet)@data
+ra.clin$Tacera_ID <- as.character(ra.clin$Tacera_ID)
+# vax HCs
+vax.rna.eSet <- readRDS(file.path("data","RA_MAP","vaccine_microarray_eSet.rds"))
+table(vax.rna.eSet$CELL.TYPE)
+vax.expr <- assayData(vax.rna.eSet)$exprs
+vax.clin <- phenoData(vax.rna.eSet)@data
+
+# merge patient and HC expressions
+clin <- bind_rows(ra.clin,vax.clin)
+gplots::venn(list(ra=rownames(ra.expr),vax=rownames(vax.expr)))
+common.genes <- intersect(rownames(ra.expr),rownames(vax.expr))
+common.genes <- common.genes[common.genes != ""]
+expr <- cbind(ra.expr[common.genes,],vax.expr[common.genes,])
+expr <- expr[,rownames(clin)]
+
+# RA-MAP somalogic
+ramap.soma.eSet <- readRDS(file.path("data","RA_MAP","SOMASCAN_RA-Map_eSet.rds"))
+ramap.soma.eSet <- ramap.soma.eSet[featureData(ramap.soma.eSet)@data[,"ColCheck"] == "PASS",ramap.soma.eSet$RowCheck == "PASS"]
+protein.levels <- assayData(ramap.soma.eSet)$exprs
+protein.clin <- phenoData(ramap.soma.eSet)@data
+protein.clin$TimePoint <- gsub("6","6-",protein.clin$TimePoint)
+protein.info <- featureData(ramap.soma.eSet)@data
+```
+
+### Calculate transcriptional signature scores
+```{r score,out.width="900px"}
+IHM_gene_score <- calculate_signature_score(expr,ihm.sig$positive,ihm.sig$negative)
+Peters_score <- calculate_signature_score(expr,peters.sig.pos,peters.sig.neg)
+IMMAGE_score <- calculate_signature_score(expr,imm.age.sig.pos,imm.age.sig.neg)
+
+microarray.samples <- cbind(clin,IHM_gene_score,Peters_score,IMMAGE_score)
+
+# remove older patients to match age range of HCs
+microarray.samples <- subset(microarray.samples, AGE <= 60)
+
+# whole-blood data
+microarray.samples.wb.baseline <- subset(microarray.samples,CELL.TYPE == "WB" & TIME %in% c("Baseline","Visit_1"))
+microarray.samples.wb.6m <- subset(microarray.samples,CELL.TYPE == "WB" & TIME %in% c("6-month","Visit_1"))
+```
+
+### Calculate proteomics signature scores
+```{r score.proteins,out.width="900px"}
+IHM_protein_score <- calculate_signature_score(protein.levels,
+                                            make.names(subset(ihm.soma.sig,direction == "positive")$SomaId),
+                                            make.names(subset(ihm.soma.sig,direction == "negative")$SomaId))
+
+# iAge top 15 proteins
+sig.neg <- tolower(protein.info$EntrezGeneSymbol) %in% tolower(iAge.data$Negative) | tolower(protein.info$Target) %in% tolower(iAge.data$Negative) 
+sig.pos <- tolower(protein.info$Target) %in% tolower(iAge.data$Positive) | tolower(protein.info$Target) %in% tolower(iAge.data$Positive)
+iAge_protein_score <- get_score(t(cbind(-t(protein.levels)[,sig.neg],t(protein.levels)[,sig.pos])))
+
+# Tanaka signatures
+tanaka.proteins <- cbind(protein.info,tanaka.age.signatures[match(protein.info$SomaId,tanaka.age.signatures$SOMAID),])
+tanaka.proteins <- subset(tanaka.proteins,!is.na(X76.protein.predictor))
+nrow(tanaka.proteins)
+Tanaka_protein_score <- colSums(sweep(protein.levels[rownames(tanaka.proteins),],1,tanaka.proteins$X76.protein.predictor,"*")) +
+  tanaka.age.signatures$X76.protein.predictor[1] # intercept
+
+somalogic.samples <- cbind(protein.clin,IHM_protein_score,iAge_protein_score,Tanaka_protein_score)
+```
+
+### Serum Proteins
+From Somalogic dataset
+```{r single.proteins}
+individual.proteins <- subset(protein.info,Target %in% c("CRP","IL-6","MIG","Neurotrophin-3","MIC-1"))
+tmp <- t(protein.levels[rownames(individual.proteins),])
+colnames(tmp) <- individual.proteins$Target
+somalogic.samples.w.proteins <- cbind(somalogic.samples,tmp[rownames(somalogic.samples),])
+
+# IHM protein scores w/ CRP regressed out
+somalogic.samples.w.proteins$IHM_protein_score_wo_CRP <- resid(lm(IHM_protein_score ~ CRP,somalogic.samples.w.proteins))
+
+somalogic.samples.baseline <- subset(somalogic.samples.w.proteins,TimePoint == "Baseline")
+somalogic.samples.6m <- subset(somalogic.samples.w.proteins,(TimePoint == "6month" & SampleGroup != "HC") | SampleGroup == "HC")
+```
+
+### Baseline RA vs. HC Performance
+```{r baseline.performance}
+score.type.list <- list(IHM=c("IHM_protein_score","IHM_gene_score"),
+                        ageing.signature=c("IMMAGE_score","Peters_score","iAge_protein_score","Tanaka_protein_score"),
+                        serum.protein=c("CRP","Neurotrophin-3","IL-6","MIG","MIC-1"))
+score.type <- unlist(score.type.list)
+score.type.color <- ggsci::pal_simpsons()(length(score.type))
+
+merged.samples <- merge(microarray.samples.wb.baseline,somalogic.samples.baseline,by.x="Patient_ID",by.y="Subject_ID",suf=c("",".soma"))
+merged.samples$condition <- ifelse(merged.samples$Study == "VACCINE","Healthy","RA")
+
+model.res <- list()
+condition.v.hc.res <- data.frame()
+index <- 0
+# All
+for (i in score.type) {
+  cat(i,"-\n")
+  model.res[[i]] <- summary(lm(as.formula(paste0("scale(rank(`",i,"`)) ~ condition + AGE + SEX + BMI + CRP")),merged.samples))
+  
+  res <- roc(controls=subset(merged.samples,condition == "Healthy")[,i],
+             cases=subset(merged.samples,!(condition %in% c("Healthy")))[,i])
+  if (i == "IHM_protein_score") {
+    res.orig <- res
+    p.val <- NA
+  } else {
+    test.res <- roc.test(res,res.orig,method="bootstrap")
+    p.val <- test.res$p.value
+  }
+  plot(res,print.auc=T,add=ifelse(index == 0,F,T),print.auc.y = 0.6 - index*0.05,print.auc.x = 0.2,
+       col=score.type.color[index+1],print.auc.col=score.type.color[index+1],print.auc.cex=0.75)
+  index <- index + 1
+  condition.v.hc.res <- rbind(condition.v.hc.res,data.frame(metric=i,condition="RA",
+                                                            auc=res$auc,p.val=p.val,
+                                                            num.cases=length(res$cases),num.controls=length(res$controls)))
+}
+legend("bottomleft",legend=score.type,col=score.type.color,lwd=4,cex = 0.5)
+
+score.type.map = rep(seq_along(score.type.list), times = sapply(score.type.list, length))
+names(score.type.map) <- unlist(score.type.list)
+
+# plot model results RA vs. HC
+model.res.RA.term <- as.data.frame(t(sapply(model.res,function(x){x$coefficients[2,]})))
+model.res.RA.term$metric <- factor(rownames(model.res.RA.term),levels = score.type)
+model.res.RA.term$metric.type <- names(score.type.list)[score.type.map[model.res.RA.term$metric]]
+ggplot(subset(model.res.RA.term,metric != "CRP"),aes(`t value`,metric)) + geom_bar(stat="identity",aes(fill=metric.type)) +
+  geom_vline(xintercept = 0,linetype="dashed",color="red") +
+  geom_text(aes(label=paste0("p=",sprintf("%.3e",`Pr(>|t|)`))),x=2.3,size=3) + xlim(NA,3) +
+  theme_bw() + ggthemes::scale_fill_tableau(na.value="grey") + xlab("Effect Size") + ggtitle("RA vs. HC")
+#ggsave(file.path(PROJECT_DIR,"healthy.baseline.RA.model.t.val.barplot.pdf"),width=6,height=4)
+
+# barplot of AUC
+condition.v.hc.res$metric <- factor(condition.v.hc.res$metric,levels = score.type)
+condition.v.hc.res$metric.type <- names(score.type.list)[score.type.map[condition.v.hc.res$metric]]
+condition.v.hc.res$p.val.label <- ifelse(condition.v.hc.res$p.val <= 0.0001,"****",
+                                         ifelse(condition.v.hc.res$p.val <= 0.001,"***",
+                                            ifelse(condition.v.hc.res$p.val <= 0.01,"**",
+                                              ifelse(condition.v.hc.res$p.val <= 0.05,"*","NS"))))  
+ggplot(condition.v.hc.res,aes(metric,auc)) + geom_bar(stat="identity",aes(fill=metric.type),alpha=0.75) +
+  geom_hline(yintercept = 0.5,linetype="dashed",color="red") +
+  geom_text(aes(label=p.val.label),y=1,size=3) +
+  #geom_text(aes(label=paste0("p=",sprintf("%.3e",p.val))),y=1,size=2) +
+  ggthemes::scale_fill_tableau(na.value="grey") + ylim(NA,1.05) +
+  theme_bw() + theme(axis.text.x=element_text(angle=30,hjust=1)) + ggtitle("RA-MAP baseline samples")
+#ggsave(file.path(PROJECT_DIR,"healthy.baseline.RA.auc.barplot.pdf"),width=7,height=4)
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```

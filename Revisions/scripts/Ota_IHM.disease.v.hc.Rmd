@@ -1,0 +1,99 @@
+---
+title: "Autoimmune patients vs. HCs using IHM and jPC1"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+Use cell-specific datasets from Ota et al. to determine the discriminatory power of IHM using a linear model
+
+Extended Data Figures 4g-h
+```{r setup,message=F}
+set.seed(869)
+library(tidyverse)
+library(ggpubr)
+library(Biobase)
+library(BiocGenerics)
+library(pROC)
+source(file.path("scripts","utils.R"))
+
+# IHM transcriptomic
+ihm.sig <- readRDS(file.path("data","IHM","healthy_index_transcriptomic_signature_2021_04_19.rds"))
+# jPC1 trnascriptomic
+jPC1.sig <- readRDS(file.path("data","IHM","jPC1_transcriptomic_signature.rds"))
+signatures <- list(IHM=ihm.sig,jPC1=jPC1.sig)
+```
+
+### Calculate transcriptional signature scores for Ota dataset
+```{r score,out.width="900px"}
+cpm_list <- readRDS(file.path("data","ota_2021","cpm_list_rm_batch_phase.rds"))
+cell_names <- read.csv(file.path("data","ota_2021","ota_cell_names.csv"),row.names = 1)
+
+ota.data <- lapply(cpm_list, function(y){
+  print("starting")
+  scores <- do.call(cbind,lapply(signatures,function(sig){calculate_signature_score(y$cpm, sig$positive,sig$negative)}))
+  list(scores = scores, meta = y$meta)
+})
+
+ota.healthy.scores <- lapply(ota.data,function(x){data.frame(x$scores,x$meta)})
+
+dat_combined <- bind_rows(ota.healthy.scores, .id = "celltype")
+dat_combined <- dat_combined %>% mutate(has_disease = disease != "HC")
+dat_combined <- reshape2::melt(dat_combined,measure.vars = c("IHM","jPC1"),variable.name = "signature",value.name = "score")
+dat_combined$celltype_label <- cell_names[dat_combined$celltype,1]
+```
+
+### HC vs. patients Classification
+```{r classification}
+p_threshold <- .05
+
+healthy_lm <- function(dat){
+  mod <- lm(score ~ age + has_disease + sex, data = dat)
+  as.data.frame(summary(mod)$coefficients) %>%
+          rownames_to_column("term") %>%
+          dplyr::rename(p.value = `Pr(>|t|)`)
+}
+
+vs_healthy_res <- 
+        dat_combined %>%
+        group_by(celltype_label,celltype, signature) %>%
+        do(healthy_lm(.)) %>%
+        ungroup %>%
+        group_by(term) %>%
+        mutate(fdr = p.adjust(p.value, method = "fdr"))
+
+vs_healthy_res_healthy_coef <- vs_healthy_res %>%
+        filter(term == "has_diseaseTRUE")
+
+cell_order <- vs_healthy_res_healthy_coef %>% 
+        filter(signature == "IHM") %>%
+        arrange(Estimate) %>%
+        pull(celltype_label)
+
+p <- ggplot(vs_healthy_res_healthy_coef %>% mutate(celltype = factor(celltype_label, levels = cell_order)), aes(x = signature, y = celltype)) +
+        geom_point(aes(size = -log10(fdr), fill = Estimate, color = fdr < p_threshold), shape = 21) +
+        scale_color_manual(values = c("white", "black")) +
+        theme_bw() +
+        scale_fill_gradient2(low = "blue", high = "red", limits = c(-.65, .65))
+print(p)
+
+p2 <- dat_combined %>% filter(signature == "IHM", celltype %in% c("CL_Mono", "Neu", "pDC")) %>%
+             mutate(healthy = ifelse(has_disease, "Disease", "Healthy")) %>%
+        ggplot() +
+        geom_boxplot(aes(x = healthy, y = score)) +
+        facet_wrap(~celltype, scales = "free", nrow = 1) +
+        theme_bw() +
+        ggtitle("IHM")
+print(p2)
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```

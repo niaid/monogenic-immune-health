@@ -1,0 +1,123 @@
+---
+title: "Comparing IHM with age signatures"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: True
+  html_notebook:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+IMM-AGE transcriptional surrogate and BLSA aging proteins from Tanaka et al.
+
+Extended Data Figures 5b, 5h-i
+```{r setup}
+library(tidyverse)
+library(ggpubr)
+library(pROC)
+source(file.path("scripts","utils.R"))
+
+# IHM transcriptional surrogate
+ihm.gene.sig <- readRDS(file.path("data","IHM","healthy_index_transcriptomic_signature_2021_04_19.rds"))
+
+# IHM protein surrogate
+ihm.soma.sig <- read.csv(file.path("data","IHM","IHM.protein.signature.txt"),sep = "\t",strip.white = T,stringsAsFactors = F)
+
+# IMM-Age
+imm.age.data <- read.csv(file.path("data","external_signatures","IMM_AGE.transcriptional.signature.txt"),sep = "\t")
+imm.age.sig.pos <- subset(imm.age.data,direction.along.IMM.AGE.axis == 1)$gene.symbol
+imm.age.sig.neg <- subset(imm.age.data,direction.along.IMM.AGE.axis == -1)$gene.symbol
+imm.age.sig <- c(imm.age.sig.neg,imm.age.sig.pos)
+
+# BLSA age-associated proteins
+blsa.proteins <- read.csv(file.path("data","external_signatures","blsa.proteins.age.association.csv"))
+blsa.proteins$blsa <- blsa.proteins$P1 < 0.05/nrow(blsa.proteins)
+
+# Pan-mono datasets
+microarray.eset <- readRDS(file.path("data","Pan_Monogenic","eset_batch_training.rds"))
+microarray.holdout.eset <- readRDS(file.path("data","Pan_Monogenic","eset_batch_validation.rds"))
+gene.metadata <- microarray.eset@featureData@data
+```
+
+### Overlap of signatures
+```{r overlap}
+gplots::venn(list(IMMAGE=imm.age.sig,IHM=c(ihm.gene.sig$positive,ihm.gene.sig$negative)))
+
+# overlap between IHM protein surrogate and BLSA age-associated proteins
+blsa.proteins$within.IHM <- blsa.proteins$SomaId %in% ihm.soma.sig$SomaId
+gplots::venn(list(BLSA=rownames(subset(blsa.proteins,blsa == T)),IHM=rownames(subset(blsa.proteins,within.IHM ==T))))
+(cont.table <- table(blsa.proteins[,c("blsa","within.IHM")]))
+fisher.test(cont.table,alternative = "greater")
+```
+
+### Training Set
+Correlation between transcriptional signature scores
+```{r score.training,out.width="900px"}
+expr <- microarray.eset@assayData$exprs
+sample.metadata <- microarray.eset@phenoData@data
+sample.metadata$IHM_gene_score <- calculate_signature_score(expr,ihm.gene.sig$positive,ihm.gene.sig$negative)
+sample.metadata$IMMAGE_score <-  calculate_signature_score(expr,imm.age.sig.pos,imm.age.sig.neg)
+
+samples.subject.mean <- as.data.frame(sample.metadata %>% group_by(patient_id,condition,race,gender) %>% 
+  summarise_at(.vars=c("IHM_gene_score","IMMAGE_score","patient_age_at_time_of_blood_draw"),.funs = mean))
+
+ggplot(samples.subject.mean,aes(IHM_gene_score,IMMAGE_score)) + geom_point(alpha=0.75,size=2) + 
+  geom_smooth(method = "lm",se=F) + stat_cor() + theme_bw() + 
+  xlab("IHM transcriptomic surrogate score") + ylab("IMM-AGE score") + ggtitle("Training Set")
+#ggsave(file.path(PROJECT_DIR,"signature.score.correlation.training.pdf"),width=3.5,height=3.5)
+```
+
+### Healthy vs. disease
+```{r auc.training}
+subject.scores <- samples.subject.mean
+index <- 0
+score.type <- grep("score",colnames(subject.scores),value=T)
+score.type.color <- ggsci::pal_simpsons()(length(score.type))
+for (i in score.type) {
+  res <- roc(controls=subset(subject.scores,condition == "Healthy")[,i],cases=subset(subject.scores,condition != "Healthy")[,i])
+  plot(res,print.auc=T,add=ifelse(index == 0,F,T),print.auc.y = 0.8 - index*0.05,print.auc.x = 0.2,
+       col=score.type.color[index+1],print.auc.col=score.type.color[index+1],print.auc.cex=0.75)
+  index <- index + 1
+}
+legend("bottomright",legend=score.type,col=score.type.color,cex = 0.75,lwd=4)
+```
+
+### Holdout Set
+```{r score.holdout,out.width="900px"}
+# holdout set
+sample.metadata <- microarray.holdout.eset@phenoData@data
+expr <- microarray.holdout.eset@assayData$exprs
+sample.metadata$IHM_gene_score <- calculate_signature_score(expr,ihm.gene.sig$positive,ihm.gene.sig$negative)
+sample.metadata$IMMAGE_score <-  calculate_signature_score(expr,imm.age.sig.pos,imm.age.sig.neg)
+
+samples.subject.mean <- as.data.frame(sample.metadata %>% group_by(patient_id,condition,race,gender) %>% 
+  summarise_at(.vars=c("IHM_gene_score","IMMAGE_score","patient_age_at_time_of_blood_draw"),.funs = mean))
+
+ggplot(samples.subject.mean,aes(IHM_gene_score,IMMAGE_score)) + geom_point(alpha=0.75,size=2) + 
+  geom_smooth(method = "lm",se=F) + stat_cor() + theme_bw() + 
+  xlab("IHM transcriptomic surrogate score") + ylab("IMM-AGE score") + ggtitle("Holdout Set")
+#ggsave(file.path(PROJECT_DIR,"signature.score.correlation.holdout.pdf"),width=3.5,height=3.5)
+```
+
+### Healthy vs. disease Validation
+```{r auc.holdout}
+subject.scores <- samples.subject.mean
+index <- 0
+score.type <- grep("score",colnames(subject.scores),value=T)
+score.type.color <- ggsci::pal_simpsons()(length(score.type))
+for (i in score.type) {
+  res <- roc(controls=subset(subject.scores,condition == "Healthy")[,i],cases=subset(subject.scores,condition != "Healthy")[,i])
+  plot(res,print.auc=T,add=ifelse(index == 0,F,T),print.auc.y = 0.8 - index*0.05,print.auc.x = 0.2,
+       col=score.type.color[index+1],print.auc.col=score.type.color[index+1],print.auc.cex=0.75)
+  index <- index + 1
+}
+legend("bottomright",legend=score.type,col=score.type.color,cex = 0.75,lwd=4)
+```
+
+### Session Info
+```{r session}
+sessionInfo()
+```
