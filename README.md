@@ -1,7 +1,7 @@
 # A Unified Metric of Human Immune Health
 
 This repository contains the code accompanying the article:
-Rachel Sparks, Nicholas Rachmaninoff, William W. Lau, Dylan C. Hirsch, Neha Bansal, ..., John S. Tsang: A Unified Metric of Human Immune Health (Nature Medicine, 2024)
+Rachel Sparks, Nicholas Rachmaninoff, William W. Lau, Dylan C. Hirsch, Neha Bansal, ..., John S. Tsang: A Unified Metric of Human Immune Health (Nature Medicine, 2024). https://www.nature.com/articles/s41591-024-03092-6
 
 
 ### Input Data
