@@ -2020,5 +2020,153 @@ $(document).ready(function () {
   })();
 </script>
 
+
+<!-- 新增：算法模型分析 -->
+<div class="section level2" id="算法模型分析">
+<h2>算法模型分析</h2>
+<p>本节总结用于评估蛋白质组替代免疫健康指标与年龄关联的建模策略、假设检验与验证流程，供复现与方法学审查之用。下方提供可复制的 R 与 Python 示例脚本，覆盖基线线性回归、LASSO、随机森林与性能评估。</p>
+
+<h3>R 示例（回归任务）</h3>
+<p>说明：假设数据框 df 包含列: IHM (数值型目标), age, sex, batch, CRP, 以及若干蛋白质特征以 p1,p2,... 表示。</p>
+<pre><code class="language-r"># 安装所需包（仅首次）
+# install.packages(c('glmnet','randomForest','xgboost','caret','yardstick'))
+
+library(glmnet)
+library(randomForest)
+library(xgboost)
+library(caret)
+library(yardstick)
+
+set.seed(12345)
+
+# 示例：读取数据（替换为真实路径/加载方式）
+# df <- read.csv('path/to/data.csv')
+
+# 准备数据
+features <- grep('^p', names(df), value = TRUE) # 所有蛋白特征以 p 开头
+X <- as.matrix(scale(df[, features]))
+y <- df$IHM
+covariates <- model.matrix(~ age + sex + batch + CRP, data = df)[, -1]
+Xcov <- cbind(covariates, X)
+
+# 1) 线性回归（基线）
+fit_lm <- lm(IHM ~ age + sex + batch + CRP, data = df)
+summary(fit_lm)
+
+# 2) LASSO（带协变量）
+cv_lasso <- cv.glmnet(Xcov, y, alpha = 1, nfolds = 5)
+best_lambda <- cv_lasso$lambda.min
+fit_lasso <- glmnet(Xcov, y, alpha = 1, lambda = best_lambda)
+coef(fit_lasso)[1:20, , drop=FALSE]
+
+# 3) 随机森林
+rf_dat <- data.frame(IHM = y, Xcov)
+fit_rf <- randomForest(IHM ~ ., data = rf_dat, ntree = 500)
+importance(fit_rf)
+
+# 4) 性能评估（重复的训练/测试分割）
+set.seed(42)
+train_idx <- createDataPartition(y, p = 0.8, list = FALSE)
+train_df <- df[train_idx, ]
+test_df  <- df[-train_idx, ]
+
+# 线性回归在分割上的性能
+pred_lm <- predict(lm(IHM ~ age + sex + batch + CRP, data = train_df), newdata = test_df)
+metrics_lm <- data.frame(
+  R2 = yardstick::rsq_vec(test_df$IHM, pred_lm),
+  RMSE = yardstick::rmse_vec(test_df$IHM, pred_lm),
+  MAE = yardstick::mae_vec(test_df$IHM, pred_lm)
+)
+print(metrics_lm)
+
+# LASSO（示意）
+Xtrain <- as.matrix(scale(train_df[, features]))
+Xtest  <- as.matrix(scale(test_df[, features]))
+cov_train <- model.matrix(~ age + sex + batch + CRP, data = train_df)[, -1]
+cov_test  <- model.matrix(~ age + sex + batch + CRP, data = test_df)[, -1]
+Xcov_train <- cbind(cov_train, Xtrain)
+Xcov_test  <- cbind(cov_test, Xtest)
+cv_lasso <- cv.glmnet(Xcov_train, train_df$IHM, nfolds = 5)
+pred_lasso <- predict(cv_lasso, newx = Xcov_test, s = 'lambda.min')
+print(data.frame(R2 = yardstick::rsq_vec(test_df$IHM, pred_lasso), RMSE = yardstick::rmse_vec(test_df$IHM, pred_lasso)))
+
+# 随机森林性能
+rf_dat_train <- data.frame(IHM = train_df$IHM, Xcov_train)
+rf_dat_test  <- data.frame(IHM = test_df$IHM, Xcov_test)
+fit_rf <- randomForest(IHM ~ ., data = rf_dat_train, ntree = 500)
+pred_rf <- predict(fit_rf, newdata = rf_dat_test)
+print(data.frame(R2 = yardstick::rsq_vec(rf_dat_test$IHM, pred_rf), RMSE = yardstick::rmse_vec(rf_dat_test$IHM, pred_rf)))
+
+# 可解释性（示例：glmnet 非零系数）
+coef_idx <- which(coef(cv_lasso, s='lambda.min') != 0)
+print(coef(cv_lasso, s='lambda.min')[coef_idx])
+</code></pre>
+
+<h3>Python 示例（回归任务）</h3>
+<p>说明：假设使用 pandas DataFrame df，列名与 R 示例一致。</p>
+<pre><code class="language-python"># 依赖：pip install scikit-learn xgboost shap pandas numpy
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.linear_model import LinearRegression, LassoCV, RidgeCV
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from sklearn.preprocessing import StandardScaler
+import shap
+
+SEED = 12345
+np.random.seed(SEED)
+
+# df = pd.read_csv('path/to/data.csv')
+features = [c for c in df.columns if c.startswith('p')]
+X = df[features].values
+y = df['IHM'].values
+cov = pd.get_dummies(df[['age','sex','batch','CRP']], drop_first=True).values
+Xcov = np.hstack([cov, StandardScaler().fit_transform(X)])
+
+# Train / test split
+X_train, X_test, y_train, y_test = train_test_split(Xcov, y, test_size=0.2, random_state=SEED)
+
+# 1) Linear regression baseline
+lr = LinearRegression().fit(X_train[:, :cov.shape[1]], y_train)  # only covariates
+pred_lr = lr.predict(X_test[:, :cov.shape[1]])
+print('LR R2:', r2_score(y_test, pred_lr), 'RMSE:', mean_squared_error(y_test, pred_lr, squared=False))
+
+# 2) Lasso with CV (all predictors)
+lasso = LassoCV(cv=5, random_state=SEED).fit(X_train, y_train)
+pred_lasso = lasso.predict(X_test)
+print('LASSO R2:', r2_score(y_test, pred_lasso), 'RMSE:', mean_squared_error(y_test, pred_lasso, squared=False))
+
+# 3) Random Forest
+rf = RandomForestRegressor(n_estimators=500, random_state=SEED, n_jobs=-1).fit(X_train, y_train)
+pred_rf = rf.predict(X_test)
+print('RF R2:', r2_score(y_test, pred_rf), 'RMSE:', mean_squared_error(y_test, pred_rf, squared=False))
+
+# 4) XGBoost (可选)
+try:
+    from xgboost import XGBRegressor
+    xgb = XGBRegressor(random_state=SEED, n_estimators=200, verbosity=0).fit(X_train, y_train)
+    pred_xgb = xgb.predict(X_test)
+    print('XGB R2:', r2_score(y_test, pred_xgb))
+except Exception as e:
+    print('XGBoost not available:', e)
+
+# 5) 特征解释（SHAP for XGBoost 或 RF）
+try:
+    explainer = shap.Explainer(rf)
+    shap_vals = explainer(X_test)
+    shap.summary_plot(shap_vals, features=np.hstack([cov, X])[ - X_test.shape[0]:], show=False)
+except Exception as e:
+    print('SHAP failed or not installed:', e)
+</code></pre>
+
+<p>使用说明（要点）：</p>
+<ul>
+  <li>替换数据读取路径与列名，使脚本能载入实际数据。</li>
+  <li>为保证可重复性，固定随机种子并记录软件/包版本。</li>
+  <li>在重要模型上运行多次 CV 或 bootstrap 以估计不确定性，并把结果记录在表格中。</li>
+  <li>如需协变混合效应（分组/重复测量），在 R 中使用 lme4::lmer 或 Python statsmodels 的混合效应 API。</li>
+</ul>
+</div>
 </body>
 </html>

@@ -49,6 +49,49 @@ Description: scripts used to generate figures and tables in the above publicatio
 
 Usage instructions: See "Input Data" and "Instructions" sections from this readme.
 
+
+## Reproducing age-group differential protein analysis
+This repo includes scripts demonstrating covariate-adjusted age-group testing and heatmap generation:
+- scripts/age_grouping_examples.py  — per-protein OLS (Python, statsmodels), BH FDR, seaborn clustermap
+- scripts/age_grouping_examples.R   — limma-based pipeline (R/Bioconductor) recommended for proteomics
+- data/expr_sample_table.csv        — synthetic demo data (replace with real data)
+- outputs/                          — example outputs (heatmaps and result CSVs)
+
+Quick steps (Linux/Windows with conda)
+1) Install Miniconda (https://docs.conda.io/en/latest/miniconda.html) if needed.
+2) Create and activate Python env (for Python script):
+   conda create -y -n ihm-py python=3.10
+   conda activate ihm-py
+   pip install numpy pandas scipy statsmodels seaborn matplotlib scikit-learn
+   python scripts\age_grouping_examples.py
+   # outputs/perprotein_ols_results.csv and outputs/age_diff_heatmap_ols.png will be created
+
+3) Create conda R env and run limma script (repro steps used here):
+   # Miniconda user install is recommended when admin rights are unavailable
+   conda create -y -n copilot-r -c conda-forge r-base
+   # Accept conda Terms of Service if prompted (conda tos accept ...)
+   # Install limma & pheatmap inside the R env
+   conda run -n copilot-r Rscript -e "install.packages('pheatmap', repos='https://cran.rstudio.com/')"
+   conda run -n copilot-r Rscript -e "if (!requireNamespace('BiocManager', quietly=TRUE)) install.packages('BiocManager', repos='https://cran.rstudio.com/'); BiocManager::install('limma', ask=FALSE)"
+   # Run the analysis
+   conda run -n copilot-r Rscript scripts\age_grouping_examples.R
+   # outputs/limma_results_trend.csv and outputs/age_diff_heatmap_limma.png will be created
+
+Notes and troubleshooting
+- The scripts expect a CSV with sample rows and protein columns prefixed by 'p' (e.g., pProteinA), and metadata columns: age, sex, batch, CRP (optional), SampleID (optional). Adjust PROT_PREFIX and column names in the scripts if yours differ.
+- pandas.qcut can fail when age has many duplicate values or NaNs; edit the script to use pd.cut with manual bins when needed.
+- On Windows, Miniconda installers may fail if your user path contains non-ASCII characters; a workaround is installing Miniconda to an ASCII-only path (e.g., C:\Users\Public\Miniconda3) — the scripts above show how this session handled it.
+- Conda may require accepting Terms of Service for certain channels; run conda tos accept --override-channels --channel <url> if needed.
+- R package installs use the system TMP/TEMP; set safe TMP (e.g., C:\Temp) if installing under a user with non-ASCII homedir.
+
+Reproducibility tips
+- For production runs, prefer running the R limma pipeline in a clean conda env or Docker container to avoid environment drift.
+- Store real data outside the repo and replace data/expr_sample_table.csv with a symlink or path to secure storage.
+
+If you want, I can:
+- Add these steps as a new file docs/AGE_ANALYSIS_REPRO.md with exact commands executed here (including conda tos acceptance and TMP workaround),
+- Or commit the README changes now (recommended).
+
 Disclaimer:
 
 A review of this code has been conducted, no critical errors exist, and to the best of the authors knowledge, there are no problematic file paths, no local system configuration details, and no passwords or keys included in this code. This open source software comes as is with absolutely no warranty.
